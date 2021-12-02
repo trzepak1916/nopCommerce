@@ -11,7 +11,7 @@ namespace Nop.Web.Areas.Admin.Models.Settings
         #region Properties
 
         [NopResourceDisplayName("Admin.Configuration.AppSettings.WebOptimizer.EnableJavaScriptBundling")]
-        public bool EnableJsBundling { get; set; }
+        public bool EnableJavaScriptBundling { get; set; }
 
         [NopResourceDisplayName("Admin.Configuration.AppSettings.WebOptimizer.EnableCssBundling")]
         public bool EnableCssBundling { get; set; }

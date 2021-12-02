@@ -134,7 +134,7 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             var config = _appSettings.Get<WebOptimizerConfig>();
 
             //bundling
-            if (config.EnableJsBundling)
+            if (config.EnableJavaScriptBundling)
             {
                 var defaultBundleBuffix = GetBundleSuffix();
                 if (string.Equals(context.TagName, BUNDLE_TAG_NAME))

@@ -21,7 +21,7 @@ namespace Nop.Web.Framework.Configuration
         /// <summary>
         /// A value indicating whether JS file bundling and minification is enabled
         /// </summary>
-        public bool EnableJsBundling { get; private set; } = true;
+        public bool EnableJavaScriptBundling { get; private set; } = true;
 
         /// <summary>
         /// A value indicating whether CSS file bundling and minification is enabled

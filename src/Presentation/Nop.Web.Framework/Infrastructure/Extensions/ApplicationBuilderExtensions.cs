@@ -224,12 +224,12 @@ namespace Nop.Web.Framework.Infrastructure.Extensions
                 new FileProviderOptions
                 {
                     RequestPath =  new PathString("/Plugins"),
-                    FileProvider =new PhysicalFileProvider(fileProvider.MapPath(@"Plugins"))
+                    FileProvider = new PhysicalFileProvider(fileProvider.MapPath(@"Plugins"))
                 },
                 new FileProviderOptions
                 {
                     RequestPath =  new PathString("/Themes"),
-                    FileProvider =new PhysicalFileProvider(fileProvider.MapPath(@"Themes"))
+                    FileProvider = new PhysicalFileProvider(fileProvider.MapPath(@"Themes"))
                 }
             });
         }

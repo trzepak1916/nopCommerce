@@ -394,7 +394,7 @@ namespace Nop.Web.Framework.Infrastructure.Extensions
         {
             var appSettings = Singleton<AppSettings>.Instance;
             var cssBundling = appSettings.Get<WebOptimizerConfig>().EnableCssBundling;
-            var jsBundling = appSettings.Get<WebOptimizerConfig>().EnableJsBundling;
+            var jsBundling = appSettings.Get<WebOptimizerConfig>().EnableJavaScriptBundling;
 
             //add minification & bundling
             var cssSettings = new CssBundlingSettings

@@ -73,9 +73,6 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             // Retrieve the TagHelperOutput variation of the "src" attribute in case other TagHelpers in the
             // pipeline have touched the value. If the value is already encoded this ScriptTagHelper may
             // not function properly.
-            // Retrieve the TagHelperOutput variation of the "src" attribute in case other TagHelpers in the
-            // pipeline have touched the value. If the value is already encoded this ScriptTagHelper may
-            // not function properly.
             var hrefAttribute = output.Attributes[HREF_ATTRIBUTE_NAME];
 
             if (hrefAttribute is null)

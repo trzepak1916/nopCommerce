@@ -3,14 +3,14 @@
 <div class="card-body">
     <div class="form-group row">
         <div class="col-md-3">
-            <nop-label asp-for="WebOptimizerConfigModel.EnableJsBundling" />
+            <nop-label asp-for="WebOptimizerConfigModel.EnableJavaScriptBundling" />
         </div>
         <div class="col-md-9">
-            <nop-editor asp-for="WebOptimizerConfigModel.EnableJsBundling" />
-            <span asp-validation-for="WebOptimizerConfigModel.EnableJsBundling"></span>
+            <nop-editor asp-for="WebOptimizerConfigModel.EnableJavaScriptBundling" />
+            <span asp-validation-for="WebOptimizerConfigModel.EnableJavaScriptBundling"></span>
         </div>
     </div>
-    <nop-nested-setting asp-for="WebOptimizerConfigModel.EnableJsBundling">
+    <nop-nested-setting asp-for="WebOptimizerConfigModel.EnableJavaScriptBundling">
         <div class="form-group row advanced-setting">
             <div class="col-md-3">
                 <nop-label asp-for="WebOptimizerConfigModel.JavaScriptBundleSuffix" />
