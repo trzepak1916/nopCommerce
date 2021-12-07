@@ -16,7 +16,7 @@ namespace Nop.Services.Vendors
         #region Fields
 
         private readonly ILocalizationService _localizationService;
-        private readonly INopHtmlHelper _nopHtmlHelper;
+        private readonly IHtmlFormatter _nopHtmlFormatter;
         private readonly IVendorAttributeParser _vendorAttributeParser;
         private readonly IVendorAttributeService _vendorAttributeService;
         private readonly IWorkContext _workContext;
@@ -26,13 +26,13 @@ namespace Nop.Services.Vendors
         #region Ctor
 
         public VendorAttributeFormatter(ILocalizationService localizationService,
-            INopHtmlHelper nopHtmlHelper,
+            IHtmlFormatter nopHtmlFormatter,
             IVendorAttributeParser vendorAttributeParser,
             IVendorAttributeService vendorAttributeService,
             IWorkContext workContext)
         {
             _localizationService = localizationService;
-            _nopHtmlHelper = nopHtmlHelper;
+            _nopHtmlFormatter = nopHtmlFormatter;
             _vendorAttributeParser = vendorAttributeParser;
             _vendorAttributeService = vendorAttributeService;
             _workContext = workContext;
@@ -75,7 +75,7 @@ namespace Nop.Services.Vendors
                             //encode (if required)
                             if (htmlEncode)
                                 attributeName = WebUtility.HtmlEncode(attributeName);
-                            formattedAttribute = $"{attributeName}: {_nopHtmlHelper.FormatText(valueStr, false, true, false, false, false, false)}";
+                            formattedAttribute = $"{attributeName}: {_nopHtmlFormatter.FormatText(valueStr, false, true, false, false, false, false)}";
                             //we never encode multiline textbox input
                         }
                         else if (attribute.AttributeControlType == AttributeControlType.FileUpload)

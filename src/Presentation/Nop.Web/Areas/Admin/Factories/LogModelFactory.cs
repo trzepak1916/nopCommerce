@@ -25,7 +25,7 @@ namespace Nop.Web.Areas.Admin.Factories
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly ILocalizationService _localizationService;
         private readonly ILogger _logger;
-        private readonly INopHtmlHelper _nopHtmlHelper;
+        private readonly IHtmlFormatter _nopHtmlFormatter;
 
         #endregion
 
@@ -36,14 +36,14 @@ namespace Nop.Web.Areas.Admin.Factories
             IDateTimeHelper dateTimeHelper,
             ILocalizationService localizationService,
             ILogger logger,
-            INopHtmlHelper nopHtmlHelper)
+            IHtmlFormatter nopHtmlFormatter)
         {
             _baseAdminModelFactory = baseAdminModelFactory;
             _dateTimeHelper = dateTimeHelper;
             _customerService = customerService;
             _localizationService = localizationService;
             _logger = logger;
-            _nopHtmlHelper = nopHtmlHelper;
+            _nopHtmlFormatter = nopHtmlFormatter;
         }
 
         #endregion
@@ -113,7 +113,7 @@ namespace Nop.Web.Areas.Admin.Factories
 
                     //fill in additional values (not existing in the entity)
                     logModel.LogLevel = await _localizationService.GetLocalizedEnumAsync(logItem.LogLevel);
-                    logModel.ShortMessage = _nopHtmlHelper.FormatText(logItem.ShortMessage, false, true, false, false, false, false);
+                    logModel.ShortMessage = _nopHtmlFormatter.FormatText(logItem.ShortMessage, false, true, false, false, false, false);
                     logModel.FullMessage = string.Empty;
                     logModel.CustomerEmail = (await _customerService.GetCustomerByIdAsync(logItem.CustomerId ?? 0))?.Email ?? string.Empty;
 
@@ -144,8 +144,8 @@ namespace Nop.Web.Areas.Admin.Factories
                     model = log.ToModel<LogModel>();
 
                     model.LogLevel = await _localizationService.GetLocalizedEnumAsync(log.LogLevel);
-                    model.ShortMessage = _nopHtmlHelper.FormatText(log.ShortMessage, false, true, false, false, false, false);
-                    model.FullMessage = _nopHtmlHelper.FormatText(log.FullMessage, false, true, false, false, false, false);
+                    model.ShortMessage = _nopHtmlFormatter.FormatText(log.ShortMessage, false, true, false, false, false, false);
+                    model.FullMessage = _nopHtmlFormatter.FormatText(log.FullMessage, false, true, false, false, false, false);
                     model.CreatedOn = await _dateTimeHelper.ConvertToUserTimeAsync(log.CreatedOnUtc, DateTimeKind.Utc);
                     model.CustomerEmail = log.CustomerId.HasValue ? (await _customerService.GetCustomerByIdAsync(log.CustomerId.Value))?.Email : string.Empty;
                 }

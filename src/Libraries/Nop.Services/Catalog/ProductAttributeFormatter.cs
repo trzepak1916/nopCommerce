@@ -24,7 +24,7 @@ namespace Nop.Services.Catalog
         private readonly ICurrencyService _currencyService;
         private readonly IDownloadService _downloadService;
         private readonly ILocalizationService _localizationService;
-        private readonly INopHtmlHelper _nopHtmlHelper;
+        private readonly IHtmlFormatter _nopHtmlFormatter;
         private readonly IPriceCalculationService _priceCalculationService;
         private readonly IPriceFormatter _priceFormatter;
         private readonly IProductAttributeParser _productAttributeParser;
@@ -41,7 +41,7 @@ namespace Nop.Services.Catalog
         public ProductAttributeFormatter(ICurrencyService currencyService,
             IDownloadService downloadService,
             ILocalizationService localizationService,
-            INopHtmlHelper nopHtmlHelper,
+            IHtmlFormatter nopHtmlFormatter,
             IPriceCalculationService priceCalculationService,
             IPriceFormatter priceFormatter,
             IProductAttributeParser productAttributeParser,
@@ -54,7 +54,7 @@ namespace Nop.Services.Catalog
             _currencyService = currencyService;
             _downloadService = downloadService;
             _localizationService = localizationService;
-            _nopHtmlHelper = nopHtmlHelper;
+            _nopHtmlFormatter = nopHtmlFormatter;
             _priceCalculationService = priceCalculationService;
             _priceFormatter = priceFormatter;
             _productAttributeParser = productAttributeParser;
@@ -128,7 +128,7 @@ namespace Nop.Services.Catalog
                                     attributeName = WebUtility.HtmlEncode(attributeName);
 
                                 //we never encode multiline textbox input
-                                formattedAttribute = $"{attributeName}: {_nopHtmlHelper.FormatText(value, false, true, false, false, false, false)}";
+                                formattedAttribute = $"{attributeName}: {_nopHtmlFormatter.FormatText(value, false, true, false, false, false, false)}";
                             }
                             else if (attribute.AttributeControlType == AttributeControlType.FileUpload)
                             {

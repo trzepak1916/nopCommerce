@@ -18,7 +18,7 @@ namespace Nop.Services.Customers
         private readonly ICustomerAttributeParser _customerAttributeParser;
         private readonly ICustomerAttributeService _customerAttributeService;
         private readonly ILocalizationService _localizationService;
-        private readonly INopHtmlHelper _nopHtmlHelper;
+        private readonly IHtmlFormatter _nopHtmlFormatter;
         private readonly IWorkContext _workContext;
 
         #endregion
@@ -28,13 +28,13 @@ namespace Nop.Services.Customers
         public CustomerAttributeFormatter(ICustomerAttributeParser customerAttributeParser,
             ICustomerAttributeService customerAttributeService,
             ILocalizationService localizationService,
-            INopHtmlHelper nopHtmlHelper,
+            IHtmlFormatter nopHtmlFormatter,
             IWorkContext workContext)
         {
             _customerAttributeParser = customerAttributeParser;
             _customerAttributeService = customerAttributeService;
             _localizationService = localizationService;
-            _nopHtmlHelper = nopHtmlHelper;
+            _nopHtmlFormatter = nopHtmlFormatter;
             _workContext = workContext;
         }
 
@@ -75,7 +75,7 @@ namespace Nop.Services.Customers
                             //encode (if required)
                             if (htmlEncode)
                                 attributeName = WebUtility.HtmlEncode(attributeName);
-                            formattedAttribute = $"{attributeName}: {_nopHtmlHelper.FormatText(valueStr, false, true, false, false, false, false)}";
+                            formattedAttribute = $"{attributeName}: {_nopHtmlFormatter.FormatText(valueStr, false, true, false, false, false, false)}";
                             //we never encode multiline textbox input
                         }
                         else if (attribute.AttributeControlType == AttributeControlType.FileUpload)

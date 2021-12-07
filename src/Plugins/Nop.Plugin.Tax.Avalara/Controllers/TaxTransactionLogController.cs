@@ -23,7 +23,7 @@ namespace Nop.Plugin.Tax.Avalara.Controllers
         private readonly ICustomerService _customerService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly ILocalizationService _localizationService;
-        private readonly INopHtmlHelper _nopHtmlHelper;
+        private readonly IHtmlFormatter _nopHtmlFormatter;
         private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly TaxTransactionLogService _taxTransactionLogService;
@@ -35,7 +35,7 @@ namespace Nop.Plugin.Tax.Avalara.Controllers
         public TaxTransactionLogController(ICustomerService customerService,
             IDateTimeHelper dateTimeHelper,
             ILocalizationService localizationService,
-            INopHtmlHelper nopHtmlHelper,
+            IHtmlFormatter nopHtmlFormatter,
             INotificationService notificationService,
             IPermissionService permissionService,
             TaxTransactionLogService taxTransactionLogService)
@@ -43,7 +43,7 @@ namespace Nop.Plugin.Tax.Avalara.Controllers
             _customerService = customerService;
             _dateTimeHelper = dateTimeHelper;
             _localizationService = localizationService;
-            _nopHtmlHelper = nopHtmlHelper;
+            _nopHtmlFormatter = nopHtmlFormatter;
             _notificationService = notificationService;
             _permissionService = permissionService;
             _taxTransactionLogService = taxTransactionLogService;
@@ -116,8 +116,8 @@ namespace Nop.Plugin.Tax.Avalara.Controllers
                 Id = logItem.Id,
                 StatusCode = logItem.StatusCode,
                 Url = logItem.Url,
-                RequestMessage = _nopHtmlHelper.FormatText(logItem.RequestMessage, false, true, false, false, false, false),
-                ResponseMessage = _nopHtmlHelper.FormatText(logItem.ResponseMessage, false, true, false, false, false, false),
+                RequestMessage = _nopHtmlFormatter.FormatText(logItem.RequestMessage, false, true, false, false, false, false),
+                ResponseMessage = _nopHtmlFormatter.FormatText(logItem.ResponseMessage, false, true, false, false, false, false),
                 CustomerId = logItem.CustomerId,
                 CustomerEmail = (await _customerService.GetCustomerByIdAsync(logItem.CustomerId))?.Email,
                 CreatedDate = await _dateTimeHelper.ConvertToUserTimeAsync(logItem.CreatedDateUtc, DateTimeKind.Utc)

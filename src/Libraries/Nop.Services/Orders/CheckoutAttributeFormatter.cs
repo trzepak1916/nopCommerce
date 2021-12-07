@@ -26,7 +26,7 @@ namespace Nop.Services.Orders
         private readonly ICurrencyService _currencyService;
         private readonly IDownloadService _downloadService;
         private readonly ILocalizationService _localizationService;
-        private readonly INopHtmlHelper _nopHtmlHelper;
+        private readonly IHtmlFormatter _nopHtmlFormatter;
         private readonly IPriceFormatter _priceFormatter;
         private readonly ITaxService _taxService;
         private readonly IWebHelper _webHelper;
@@ -41,7 +41,7 @@ namespace Nop.Services.Orders
             ICurrencyService currencyService,
             IDownloadService downloadService,
             ILocalizationService localizationService,
-            INopHtmlHelper nopHtmlHelper,
+            IHtmlFormatter nopHtmlFormatter,
             IPriceFormatter priceFormatter,
             ITaxService taxService,
             IWebHelper webHelper,
@@ -52,7 +52,7 @@ namespace Nop.Services.Orders
             _currencyService = currencyService;
             _downloadService = downloadService;
             _localizationService = localizationService;
-            _nopHtmlHelper = nopHtmlHelper;
+            _nopHtmlFormatter = nopHtmlFormatter;
             _priceFormatter = priceFormatter;
             _taxService = taxService;
             _webHelper = webHelper;
@@ -104,7 +104,7 @@ namespace Nop.Services.Orders
                             //encode (if required)
                             if (htmlEncode)
                                 attributeName = WebUtility.HtmlEncode(attributeName);
-                            formattedAttribute = $"{attributeName}: {_nopHtmlHelper.FormatText(valueStr, false, true, false, false, false, false)}";
+                            formattedAttribute = $"{attributeName}: {_nopHtmlFormatter.FormatText(valueStr, false, true, false, false, false, false)}";
                             //we never encode multiline textbox input
                         }
                         else if (attribute.AttributeControlType == AttributeControlType.FileUpload)

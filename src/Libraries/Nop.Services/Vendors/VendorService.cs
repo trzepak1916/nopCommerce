@@ -18,7 +18,7 @@ namespace Nop.Services.Vendors
     {
         #region Fields
 
-        private readonly INopHtmlHelper _htmlHelper;
+        private readonly IHtmlFormatter _htmlHelper;
         private readonly IRepository<Customer> _customerRepository;
         private readonly IRepository<Product> _productRepository;
         private readonly IRepository<Vendor> _vendorRepository;
@@ -28,7 +28,7 @@ namespace Nop.Services.Vendors
 
         #region Ctor
 
-        public VendorService(INopHtmlHelper htmlHelper,
+        public VendorService(IHtmlFormatter htmlHelper,
             IRepository<Customer> customerRepository,
             IRepository<Product> productRepository,
             IRepository<Vendor> vendorRepository,
