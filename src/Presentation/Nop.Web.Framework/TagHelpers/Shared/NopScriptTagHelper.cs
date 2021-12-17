@@ -99,8 +99,8 @@ namespace Nop.Web.Framework.TagHelpers.Shared
                 asset = _assetPipeline.AddFiles(MimeTypes.TextJavascript, sourceFile).First();
             }
 
-            Src = $"{srcAttribute}?v={asset.GenerateCacheKey(ViewContext.HttpContext)}";
-            output.Attributes.SetAttribute(SRC_ATTRIBUTE_NAME, Src);
+            Src = srcAttribute;
+            output.Attributes.SetAttribute(SRC_ATTRIBUTE_NAME, $"{srcAttribute}?v={asset.GenerateCacheKey(ViewContext.HttpContext)}");
         }
 
         private string GetBundleSuffix()
@@ -137,16 +137,25 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             //bundling
             if (config.EnableJavaScriptBundling)
             {
-                var defaultBundleBuffix = GetBundleSuffix();
-                if (string.Equals(context.TagName, BUNDLE_TAG_NAME))
+                if (config.EnableTagHelperBundling == true)
                 {
-                    output.HandleJsBundle(_assetPipeline, ViewContext, config, Src, string.Empty, BundleDestinationKey ?? defaultBundleBuffix);
-                    return;
-                }
+                    var defaultBundleBuffix = GetBundleSuffix();
+                    if (string.Equals(context.TagName, BUNDLE_TAG_NAME))
+                    {
+                        output.HandleJsBundle(_assetPipeline, ViewContext, config, Src, string.Empty, BundleDestinationKey ?? defaultBundleBuffix);
+                        return;
+                    }
 
-                if (Src is not null && !ExcludeFromBundle)
+                    if (Src is not null && !ExcludeFromBundle)
+                    {
+                        output.HandleJsBundle(_assetPipeline, ViewContext, config, Src, BundleKey ?? defaultBundleBuffix, string.Empty);
+                        return;
+                    }
+                }
+                else if (Src is not null) //TODO: must be reworked
                 {
-                    output.HandleJsBundle(_assetPipeline, ViewContext, config, Src, BundleKey ?? defaultBundleBuffix, string.Empty);
+                    output.SuppressOutput();
+                    _nopHtmlHelper.AddScriptParts(Location, Src, DebugSrc, ExcludeFromBundle);
                     return;
                 }
             }
@@ -177,7 +186,7 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             if (string.IsNullOrEmpty(Src))
                 _nopHtmlHelper.AddInlineScriptParts(Location, tagHtml);
             else
-                _nopHtmlHelper.AddScriptParts(Location, Src, DebugSrc);
+                _nopHtmlHelper.AddScriptParts(Location, Src, DebugSrc, ExcludeFromBundle);
         }
 
         #endregion

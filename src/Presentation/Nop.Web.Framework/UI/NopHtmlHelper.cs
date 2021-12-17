@@ -5,12 +5,16 @@ using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Html;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Hosting;
 using Nop.Core;
+using Nop.Core.Configuration;
 using Nop.Core.Domain.Seo;
+using Nop.Web.Framework.Configuration;
+using WebOptimizer;
 
 namespace Nop.Web.Framework.UI
 {
@@ -21,8 +25,10 @@ namespace Nop.Web.Framework.UI
     {
         #region Fields
 
+        private readonly AppSettings _appSettings;
         private readonly HtmlEncoder _htmlEncoder;
         private readonly IActionContextAccessor _actionContextAccessor;
+        private readonly IAssetPipeline _assetPipeline;
         private readonly IUrlHelperFactory _urlHelperFactory;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly SeoSettings _seoSettings;
@@ -45,17 +51,41 @@ namespace Nop.Web.Framework.UI
 
         #region Ctor
 
-        public NopHtmlHelper(HtmlEncoder htmlEncoder,
+        public NopHtmlHelper(AppSettings appSettings,
             IActionContextAccessor actionContextAccessor,
+            HtmlEncoder htmlEncoder,
+            IAssetPipeline assetPipeline,
             IUrlHelperFactory urlHelperFactory,
             IWebHostEnvironment webHostEnvironment,
             SeoSettings seoSettings)
         {
-            _htmlEncoder = htmlEncoder;
+            _appSettings = appSettings;
             _actionContextAccessor = actionContextAccessor;
+            _htmlEncoder = htmlEncoder;
+            _assetPipeline = assetPipeline;
             _urlHelperFactory = urlHelperFactory;
             _webHostEnvironment = webHostEnvironment;
             _seoSettings = seoSettings;
+        }
+
+        #endregion
+
+        #region Utils
+
+        private string GetAssetKey(string key)
+        {
+            var request = _actionContextAccessor.ActionContext?.HttpContext.Request;
+
+            if (request is null)
+                return string.Empty;
+
+            if (request.Path == PathString.Empty)
+                return key;
+
+            //remove the application path from the generated URL if exists
+            request.Path.StartsWithSegments(request.PathBase, out var url);
+
+            return url.ToString().Replace("/", "") + key;
         }
 
         #endregion
@@ -216,8 +246,9 @@ namespace Nop.Web.Framework.UI
         /// <param name="location">A location of the script element</param>
         /// <param name="src">Script path (minified version)</param>
         /// <param name="debugSrc">Script path (full debug version). If empty, then minified version will be used</param>
+        /// <param name="excludeFromBundle">A value indicating whether to exclude this script from bundling</param>
         /// <param name="isAsync">A value indicating whether to add an attribute "async" or not for js files</param>
-        public virtual void AddScriptParts(ResourceLocation location, string src, string debugSrc = "", bool isAsync = false)
+        public virtual void AddScriptParts(ResourceLocation location, string src, string debugSrc = "", bool excludeFromBundle = false, bool isAsync = false)
         {
             if (!_scriptParts.ContainsKey(location))
                 _scriptParts.Add(location, new List<ScriptReferenceMeta>());
@@ -230,6 +261,7 @@ namespace Nop.Web.Framework.UI
 
             _scriptParts[location].Add(new ScriptReferenceMeta
             {
+                ExcludeFromBundle = excludeFromBundle,
                 IsAsync = isAsync,
                 Src = src,
                 DebugSrc = debugSrc
@@ -242,8 +274,9 @@ namespace Nop.Web.Framework.UI
         /// <param name="location">A location of the script element</param>
         /// <param name="src">Script path (minified version)</param>
         /// <param name="debugSrc">Script path (full debug version). If empty, then minified version will be used</param>
+        /// <param name="excludeFromBundle">A value indicating whether to exclude this script from bundling</param>
         /// <param name="isAsync">A value indicating whether to add an attribute "async" or not for js files</param>
-        public virtual void AppendScriptParts(ResourceLocation location, string src, string debugSrc = "", bool isAsync = false)
+        public virtual void AppendScriptParts(ResourceLocation location, string src, string debugSrc = "", bool excludeFromBundle = false, bool isAsync = false)
         {
             if (!_scriptParts.ContainsKey(location))
                 _scriptParts.Add(location, new List<ScriptReferenceMeta>());
@@ -256,6 +289,7 @@ namespace Nop.Web.Framework.UI
 
             _scriptParts[location].Insert(0, new ScriptReferenceMeta
             {
+                ExcludeFromBundle = excludeFromBundle,
                 IsAsync = isAsync,
                 Src = src,
                 DebugSrc = debugSrc
@@ -275,15 +309,51 @@ namespace Nop.Web.Framework.UI
             if (!_scriptParts.Any())
                 return HtmlString.Empty;
 
-            var urlHelper = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext);
-
             var debugModel = _webHostEnvironment.IsDevelopment();
 
             var result = new StringBuilder();
+
+            var woConfig = _appSettings.Get<WebOptimizerConfig>();
+
+            if (woConfig.EnableCssBundling && woConfig.EnableTagHelperBundling == false && _scriptParts[location].Any(item => !item.ExcludeFromBundle))
+            {
+                var bundleKey = string.Concat("/js/", GetAssetKey(woConfig.JavaScriptBundleSuffix), ".js");
+
+                var sources = _scriptParts[location]
+                    .Where(item => !item.ExcludeFromBundle)
+                    .Select(item => debugModel ? item.DebugSrc : item.Src).ToArray();
+
+                if (!_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
+                {
+                    bundleAsset = _assetPipeline.AddBundle(bundleKey, MimeTypes.TextJavascript, sources);
+                }
+
+                var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase.Value;
+
+                result.AppendFormat("<script type=\"{0}\" src=\"{1}{2}?v={3}\"></script>",
+                    MimeTypes.TextJavascript, pathBase, bundleAsset.Route, bundleAsset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
+
+                return new HtmlString(result.ToString());
+            }
+
             foreach (var item in _scriptParts[location].Distinct())
             {
                 var src = debugModel ? item.DebugSrc : item.Src;
-                result.AppendFormat("<script {1}src=\"{0}\"></script>", urlHelper.Content(src), item.IsAsync ? "async " : "");
+
+                var sourceFile = src;
+                var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase.Value;
+
+                if (!string.IsNullOrEmpty(pathBase) && src.StartsWith(pathBase))
+                    sourceFile = src[pathBase.Length..];
+
+                if (!_assetPipeline.TryGetAssetFromRoute(sourceFile, out var asset))
+                {
+                    asset = _assetPipeline.AddFiles(MimeTypes.TextJavascript, sourceFile).First();
+                }
+
+                result.AppendFormat("<script type=\"{0}\" src=\"{1}{2}?v={3}\"></script>",
+                    MimeTypes.TextJavascript, pathBase, asset.Route, asset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
+
                 result.Append(Environment.NewLine);
             }
 
@@ -601,8 +671,13 @@ namespace Nop.Web.Framework.UI
         /// <summary>
         /// JS file meta data
         /// </summary>
-        private class ScriptReferenceMeta : IEquatable<ScriptReferenceMeta>
+        private record struct ScriptReferenceMeta
         {
+            /// <summary>
+            /// A value indicating whether to exclude the script from bundling
+            /// </summary>
+            public bool ExcludeFromBundle { get; set; }
+
             /// <summary>
             /// A value indicating whether to load the script asynchronously 
             /// </summary>
@@ -617,26 +692,6 @@ namespace Nop.Web.Framework.UI
             /// Src for debugging
             /// </summary>
             public string DebugSrc { get; set; }
-
-            /// <summary>
-            /// Equals
-            /// </summary>
-            /// <param name="item">Other item</param>
-            /// <returns>Result</returns>
-            public bool Equals(ScriptReferenceMeta item)
-            {
-                if (item == null)
-                    return false;
-                return Src.Equals(item.Src) && DebugSrc.Equals(item.DebugSrc);
-            }
-            /// <summary>
-            /// Get hash code
-            /// </summary>
-            /// <returns></returns>
-            public override int GetHashCode()
-            {
-                return Src == null ? 0 : Src.GetHashCode();
-            }
         }
 
         /// <summary>
