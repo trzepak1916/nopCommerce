@@ -2,11 +2,14 @@
 using System.Linq;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Razor.TagHelpers;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.TagHelpers;
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Net.Http.Headers;
 using Nop.Core;
 using Nop.Core.Configuration;
 using Nop.Web.Framework.Configuration;
@@ -59,13 +62,33 @@ namespace Nop.Web.Framework.TagHelpers.Shared
 
         #region Utils
 
+        private void ProcessAsset(TagHelperOutput output)
+        {
+            if (string.IsNullOrEmpty(Href))
+                return;
+
+            //remove the application path from the generated URL if exists
+            var pathBase = ViewContext.HttpContext?.Request?.PathBase ?? PathString.Empty;
+            PathString.FromUriComponent(Href).StartsWithSegments(pathBase, out var sourceFile);
+
+            //we call this method directly to avoid applying fingerprint
+            if (!_assetPipeline.TryGetAssetFromRoute(sourceFile, out var asset))
+            {
+                asset = _assetPipeline.AddBundle(sourceFile, $"{MimeTypes.TextCss}; charset=UTF-8", sourceFile)
+                    .EnforceFileExtensions(".css")
+                    .AdjustRelativePaths()
+                    .AddResponseHeader(HeaderNames.XContentTypeOptions, "nosniff")
+                    .MinifyCss();
+            }
+
+            output.Attributes.SetAttribute(HREF_ATTRIBUTE_NAME, $"{Href}?v={asset.GenerateCacheKey(ViewContext.HttpContext)}");
+        }
+
         private void ProcessSrcAttribute(TagHelperContext context, TagHelperOutput output)
         {
             // Pass through attribute that is also a well-known HTML attribute.
             if (Href != null)
-            {
                 output.CopyHtmlAttribute(HREF_ATTRIBUTE_NAME, context);
-            }
 
             // If there's no "src" attribute in output.Attributes this will noop.
             ProcessUrlAttribute(HREF_ATTRIBUTE_NAME, output);
@@ -73,21 +96,8 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             // Retrieve the TagHelperOutput variation of the "href" attribute in case other TagHelpers in the
             // pipeline have touched the value. If the value is already encoded this ScriptTagHelper may
             // not function properly.
-            if (output.Attributes[HREF_ATTRIBUTE_NAME]?.Value is not string hrefAttribute)
-                return;
-
-            var sourceFile = hrefAttribute;
-            var pathBase = ViewContext.HttpContext?.Request?.PathBase.Value;
-            if (!string.IsNullOrEmpty(pathBase) && hrefAttribute.StartsWith(pathBase))
-                sourceFile = hrefAttribute[pathBase.Length..];
-
-            if (!_assetPipeline.TryGetAssetFromRoute(sourceFile, out var asset))
-            {
-                asset = _assetPipeline.AddFiles(MimeTypes.TextCss, sourceFile).First();
-            }
-
-            Href = $"{hrefAttribute}?v={asset.GenerateCacheKey(ViewContext.HttpContext)}";
-            output.Attributes.SetAttribute(HREF_ATTRIBUTE_NAME, Href);
+            if (output.Attributes[HREF_ATTRIBUTE_NAME]?.Value is string hrefAttribute)
+                Href = hrefAttribute;
         }
 
         private string GetBundleSuffix()
@@ -113,15 +123,24 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             if (output == null)
                 throw new ArgumentNullException(nameof(output));
 
+            var config = _appSettings.Get<WebOptimizerConfig>();
+
+            if (config.EnableTagHelperBundling != true && string.Equals(context.TagName, BUNDLE_TAG_NAME))
+            {
+                // do not show bundle tag
+                output.SuppressOutput();
+                return Task.CompletedTask;
+            }
+
             output.TagName = LINK_TAG_NAME;
             output.Attributes.SetAttribute("type", MimeTypes.TextCss);
             output.Attributes.SetAttribute("rel", "stylesheet");
             output.TagMode = TagMode.SelfClosing;
 
-            var config = _appSettings.Get<WebOptimizerConfig>();
+            ProcessSrcAttribute(context, output);
 
             //bundling
-            if (config.EnableCssBundling)
+            if (config.EnableCssBundling && config.EnableTagHelperBundling == true)
             {
                 var defaultBundleBuffix = GetBundleSuffix();
                 if (string.Equals(context.TagName, BUNDLE_TAG_NAME))
@@ -136,10 +155,13 @@ namespace Nop.Web.Framework.TagHelpers.Shared
                     return Task.CompletedTask;
                 }
             }
+            else
+            {
+                ProcessAsset(output);
+            }
 
-            ProcessSrcAttribute(context, output);
+            _nopHtmlHelper.AddCssFileParts(Href, string.Empty, ExcludeFromBundle);
 
-            _nopHtmlHelper.AddCssFileParts(ResourceLocation.Head, Href, string.Empty);
             output.SuppressOutput();
 
             return Task.CompletedTask;

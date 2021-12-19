@@ -7,9 +7,13 @@ namespace Nop.Web.Framework.UI
     public enum ResourceLocation
     {
         /// <summary>
-        /// Not set
+        /// Pinned to the declaring place but moves to the bundle if enabled.
         /// </summary>
-        None,
+        Auto,
+        /// <summary>
+        /// Pinned to the declaring place
+        /// </summary>
+        Pinned,
         /// <summary>
         /// Header
         /// </summary>

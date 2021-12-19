@@ -9,7 +9,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Net.Http.Headers;
 using Nop.Core;
 using Nop.Core.Configuration;
 using Nop.Core.Domain.Seo;
@@ -35,7 +37,7 @@ namespace Nop.Web.Framework.UI
 
         private readonly Dictionary<ResourceLocation, List<ScriptReferenceMeta>> _scriptParts = new();
         private readonly Dictionary<ResourceLocation, List<string>> _inlineScriptParts = new();
-        private readonly Dictionary<ResourceLocation, List<CssReferenceMeta>> _cssParts = new();
+        private readonly List<CssReferenceMeta> _cssParts = new();
 
         private readonly List<string> _canonicalUrlParts = new();
         private readonly List<string> _headCustomParts = new();
@@ -72,20 +74,22 @@ namespace Nop.Web.Framework.UI
 
         #region Utils
 
-        private string GetAssetKey(string key)
+        private string GetAssetKey(string key, ResourceLocation location)
         {
             var request = _actionContextAccessor.ActionContext?.HttpContext.Request;
 
             if (request is null)
                 return string.Empty;
 
-            if (request.Path == PathString.Empty)
-                return key;
+            var keyPrefix = Enum.GetName(location) + key;
 
             //remove the application path from the generated URL if exists
             request.Path.StartsWithSegments(request.PathBase, out var url);
 
-            return url.ToString().Replace("/", "") + key;
+            if (url == PathString.Empty)
+                return keyPrefix;
+
+            return (url.ToString().Replace("/", "") + Enum.GetName(location) + key).TrimStart('.').ToLowerInvariant();
         }
 
         #endregion
@@ -315,40 +319,49 @@ namespace Nop.Web.Framework.UI
 
             var woConfig = _appSettings.Get<WebOptimizerConfig>();
 
-            if (woConfig.EnableCssBundling && woConfig.EnableTagHelperBundling == false && _scriptParts[location].Any(item => !item.ExcludeFromBundle))
+            var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
+
+            if (woConfig.EnableJavaScriptBundling && woConfig.EnableTagHelperBundling == false && _scriptParts[location].Any(item => !item.ExcludeFromBundle))
             {
-                var bundleKey = string.Concat("/js/", GetAssetKey(woConfig.JavaScriptBundleSuffix), ".js");
+                var bundleKey = string.Concat("/js/", GetAssetKey(woConfig.JavaScriptBundleSuffix, location), ".js");
 
                 var sources = _scriptParts[location]
                     .Where(item => !item.ExcludeFromBundle)
-                    .Select(item => debugModel ? item.DebugSrc : item.Src).ToArray();
+                    .Select(item => debugModel ? item.DebugSrc : item.Src)
+                    .Distinct().ToArray();
 
-                if (!_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
+                if (_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
                 {
-                    bundleAsset = _assetPipeline.AddBundle(bundleKey, MimeTypes.TextJavascript, sources);
+                    if (bundleAsset.SourceFiles.Count != sources.Length)
+                    {
+                        bundleAsset.SourceFiles.Clear();
+                        foreach (var source in sources)
+                            bundleAsset.TryAddSourceFile(source);
+                    }
                 }
-
-                var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase.Value;
+                else
+                {
+                    bundleAsset = _assetPipeline.AddJavaScriptBundle(bundleKey, sources);
+                }
 
                 result.AppendFormat("<script type=\"{0}\" src=\"{1}{2}?v={3}\"></script>",
                     MimeTypes.TextJavascript, pathBase, bundleAsset.Route, bundleAsset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
-
-                return new HtmlString(result.ToString());
             }
 
-            foreach (var item in _scriptParts[location].Distinct())
+            var scripts = _scriptParts[location]
+                .Where(item => !woConfig.EnableJavaScriptBundling || item.ExcludeFromBundle)
+                .Distinct();
+
+            foreach (var item in scripts)
             {
                 var src = debugModel ? item.DebugSrc : item.Src;
 
-                var sourceFile = src;
-                var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase.Value;
+                //remove the application path from the generated URL if exists
+                PathString.FromUriComponent(src).StartsWithSegments(pathBase, out var url);
 
-                if (!string.IsNullOrEmpty(pathBase) && src.StartsWith(pathBase))
-                    sourceFile = src[pathBase.Length..];
-
-                if (!_assetPipeline.TryGetAssetFromRoute(sourceFile, out var asset))
+                if (!_assetPipeline.TryGetAssetFromRoute(url, out var asset))
                 {
-                    asset = _assetPipeline.AddFiles(MimeTypes.TextJavascript, sourceFile).First();
+                    asset = _assetPipeline.AddJavaScriptBundle(url, url);
                 }
 
                 result.AppendFormat("<script type=\"{0}\" src=\"{1}{2}?v={3}\"></script>",
@@ -423,22 +436,20 @@ namespace Nop.Web.Framework.UI
         /// <summary>
         /// Add CSS element
         /// </summary>
-        /// <param name="location">A location of the script element</param>
         /// <param name="src">Script path (minified version)</param>
         /// <param name="debugSrc">Script path (full debug version). If empty, then minified version will be used</param>
-        public virtual void AddCssFileParts(ResourceLocation location, string src, string debugSrc)
+        /// <param name="excludeFromBundle">A value indicating whether to exclude this style sheet from bundling</param>
+        public virtual void AddCssFileParts(string src, string debugSrc, bool excludeFromBundle = false)
         {
-            if (!_cssParts.ContainsKey(location))
-                _cssParts.Add(location, new List<CssReferenceMeta>());
-
             if (string.IsNullOrEmpty(src))
                 return;
 
             if (string.IsNullOrEmpty(debugSrc))
                 debugSrc = src;
 
-            _cssParts[location].Add(new CssReferenceMeta
+            _cssParts.Add(new CssReferenceMeta
             {
+                ExcludeFromBundle = excludeFromBundle,
                 Src = src,
                 DebugSrc = debugSrc
             });
@@ -447,21 +458,18 @@ namespace Nop.Web.Framework.UI
         /// <summary>
         /// Append CSS element
         /// </summary>
-        /// <param name="location">A location of the script element</param>
         /// <param name="src">Script path (minified version)</param>
         /// <param name="debugSrc">Script path (full debug version). If empty, then minified version will be used</param>
-        public virtual void AppendCssFileParts(ResourceLocation location, string src, string debugSrc)
+        /// <param name="excludeFromBundle">A value indicating whether to exclude this style sheet from bundling</param>
+        public virtual void AppendCssFileParts(string src, string debugSrc, bool excludeFromBundle = false)
         {
-            if (!_cssParts.ContainsKey(location))
-                _cssParts.Add(location, new List<CssReferenceMeta>());
-
             if (string.IsNullOrEmpty(src))
                 return;
 
             if (string.IsNullOrEmpty(debugSrc))
                 debugSrc = src;
 
-            _cssParts[location].Insert(0, new CssReferenceMeta
+            _cssParts.Insert(0, new CssReferenceMeta
             {
                 Src = src,
                 DebugSrc = debugSrc
@@ -471,14 +479,10 @@ namespace Nop.Web.Framework.UI
         /// <summary>
         /// Generate all CSS parts
         /// </summary>
-        /// <param name="location">A location of the script element</param>
         /// <returns>Generated HTML string</returns>
-        public virtual IHtmlContent GenerateCssFiles(ResourceLocation location)
+        public virtual IHtmlContent GenerateCssFiles()
         {
-            if (!_cssParts.ContainsKey(location) || _cssParts[location] == null)
-                return HtmlString.Empty;
-
-            if (!_cssParts.Any())
+            if (_cssParts.Count == 0)
                 return HtmlString.Empty;
 
             var urlHelper = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext);
@@ -486,13 +490,74 @@ namespace Nop.Web.Framework.UI
             var debugModel = _webHostEnvironment.IsDevelopment();
 
             var result = new StringBuilder();
-            foreach (var item in _cssParts[location].Distinct())
+
+            var woConfig = _appSettings.Get<WebOptimizerConfig>();
+
+            var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
+
+            if (woConfig.EnableCssBundling && woConfig.EnableTagHelperBundling == false && _cssParts.Any(item => !item.ExcludeFromBundle))
+            {
+                var bundleKey = string.Concat("/css/", GetAssetKey(woConfig.CssBundleSuffix, ResourceLocation.Head), ".css");
+
+                var sources = _cssParts
+                    .Where(item => !item.ExcludeFromBundle)
+                    .Distinct()
+                    .Select(item => debugModel ? item.DebugSrc : item.Src).ToArray();
+
+                var bundleAsset = getOrCreateBundle(bundleKey, sources);
+
+                if (bundleAsset.SourceFiles.Count != sources.Length)
+                {
+                    bundleAsset.SourceFiles.Clear();
+                    foreach (var source in sources)
+                        bundleAsset.TryAddSourceFile(source);
+                }
+
+                result.AppendFormat("<link rel=\"stylesheet\" type=\"{0}\" href=\"{1}{2}?v={3}\" />",
+                    MimeTypes.TextCss, pathBase, bundleAsset.Route, bundleAsset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
+            }
+
+            var styles = _cssParts
+                    .Where(item => !woConfig.EnableCssBundling || item.ExcludeFromBundle)
+                    .Distinct();
+
+            foreach (var item in styles)
             {
                 var src = debugModel ? item.DebugSrc : item.Src;
-                result.AppendFormat("<link href=\"{0}\" rel=\"stylesheet\" type=\"{1}\" />", urlHelper.Content(src), MimeTypes.TextCss);
+
+                //remove the application path from the generated URL if exists
+                PathString.FromUriComponent(src).StartsWithSegments(pathBase, out var url);
+
+                var asset = getOrCreateBundle(url, url);
+
+                result.AppendFormat("<link rel=\"stylesheet\" type=\"{0}\" href=\"{1}{2}?v={3}\" />",
+                    MimeTypes.TextCss, pathBase, asset.Route, asset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
                 result.AppendLine();
             }
+
             return new HtmlString(result.ToString());
+
+            /// <summary>
+            /// Get or create an asset to the optimization pipeline.
+            /// </summary>
+            /// <param name="bundleKey">A registered route</param>
+            /// <param name="sourceFiles">Relative file names of the sources to optimize</param>
+            /// <returns></returns>//
+            IAsset getOrCreateBundle(string bundleKey, params string[] sourceFiles)
+            {
+                //we call this method directly to avoid applying fingerprint
+                if (!_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
+                {
+                    bundleAsset = _assetPipeline.AddBundle(bundleKey, $"{MimeTypes.TextCss}; charset=UTF-8", sourceFiles)
+                        .EnforceFileExtensions(".css")
+                        .AdjustRelativePaths()
+                        .Concatenate()
+                        .AddResponseHeader(HeaderNames.XContentTypeOptions, "nosniff")
+                        .MinifyCss();
+                }
+
+                return bundleAsset;
+            }
         }
 
         /// <summary>
@@ -679,7 +744,7 @@ namespace Nop.Web.Framework.UI
             public bool ExcludeFromBundle { get; set; }
 
             /// <summary>
-            /// A value indicating whether to load the script asynchronously 
+            /// A value indicating whether to load the script asynchronously
             /// </summary>
             public bool IsAsync { get; set; }
 
@@ -697,8 +762,13 @@ namespace Nop.Web.Framework.UI
         /// <summary>
         /// CSS file meta data
         /// </summary>
-        private class CssReferenceMeta : IEquatable<CssReferenceMeta>
+        private record struct CssReferenceMeta
         {
+            /// <summary>
+            /// A value indicating whether to exclude the script from bundling
+            /// </summary>
+            public bool ExcludeFromBundle { get; set; }
+
             /// <summary>
             /// Src for production
             /// </summary>
@@ -708,26 +778,6 @@ namespace Nop.Web.Framework.UI
             /// Src for debugging
             /// </summary>
             public string DebugSrc { get; set; }
-
-            /// <summary>
-            /// Equals
-            /// </summary>
-            /// <param name="item">Other item</param>
-            /// <returns>Result</returns>
-            public bool Equals(CssReferenceMeta item)
-            {
-                if (item == null)
-                    return false;
-                return Src.Equals(item.Src) && DebugSrc.Equals(item.DebugSrc);
-            }
-            /// <summary>
-            /// Get hash code
-            /// </summary>
-            /// <returns></returns>
-            public override int GetHashCode()
-            {
-                return Src == null ? 0 : Src.GetHashCode();
-            }
         }
 
         #endregion

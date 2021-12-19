@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation.AspNetCore" Version="10.3.5" />
+    <PackageReference Include="LigerShark.WebOptimizer.Core" Version="3.0.344" />
     <PackageReference Include="WebMarkupMin.AspNetCore6" Version="2.11.0" />
     <PackageReference Include="WebMarkupMin.NUglify" Version="2.11.0" />
   </ItemGroup>
@@ -23,7 +24,6 @@
     <ProjectReference Include="..\..\Libraries\Nop.Core\Nop.Core.csproj" />
     <ProjectReference Include="..\..\Libraries\Nop.Data\Nop.Data.csproj" />
     <ProjectReference Include="..\..\Libraries\Nop.Services\Nop.Services.csproj" />
-    <ProjectReference Include="E:\repos\private\WebOptimizer\src\WebOptimizer.Core\WebOptimizer.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -4,11 +4,13 @@ using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Html;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Razor.TagHelpers;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.TagHelpers;
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Nop.Core;
 using Nop.Core.Configuration;
@@ -69,6 +71,22 @@ namespace Nop.Web.Framework.TagHelpers.Shared
 
         #region Utils
 
+        private static async Task<string> BuildInlineScriptTagAsync(TagHelperOutput output)
+        {
+            //get JavaScript
+            var scriptTag = new TagBuilder(SCRIPT_TAG_NAME);
+
+            var childContent = await output.GetChildContentAsync();
+            var script = childContent.GetContent();
+
+            if (!string.IsNullOrEmpty(script))
+                scriptTag.InnerHtml.SetHtmlContent(new HtmlString(script));
+
+            scriptTag.MergeAttributes(await output.GetAttributeDictionaryAsync(), replaceExisting: false);
+
+            return await scriptTag.RenderHtmlContentAsync() + Environment.NewLine;
+        }
+
         private void ProcessSrcAttribute(TagHelperContext context, TagHelperOutput output)
         {
             if (!string.IsNullOrEmpty(DebugSrc) && _webHostEnvironment.IsDevelopment())
@@ -76,9 +94,7 @@ namespace Nop.Web.Framework.TagHelpers.Shared
 
             // Pass through attribute that is also a well-known HTML attribute.
             if (Src != null)
-            {
                 output.CopyHtmlAttribute(SRC_ATTRIBUTE_NAME, context);
-            }
 
             // If there's no "src" attribute in output.Attributes this will noop.
             ProcessUrlAttribute(SRC_ATTRIBUTE_NAME, output);
@@ -86,21 +102,25 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             // Retrieve the TagHelperOutput variation of the "src" attribute in case other TagHelpers in the
             // pipeline have touched the value. If the value is already encoded this ScriptTagHelper may
             // not function properly.
-            if (output.Attributes[SRC_ATTRIBUTE_NAME]?.Value is not string srcAttribute)
+            if (output.Attributes[SRC_ATTRIBUTE_NAME]?.Value is string srcAttribute)
+                Src = srcAttribute;
+        }
+
+        private void ProcessAsset(TagHelperOutput output)
+        {
+            if (string.IsNullOrEmpty(Src))
                 return;
 
-            var sourceFile = srcAttribute;
-            var pathBase = ViewContext.HttpContext?.Request?.PathBase.Value;
-            if (!string.IsNullOrEmpty(pathBase) && srcAttribute.StartsWith(pathBase))
-                sourceFile = srcAttribute[pathBase.Length..];
+            //remove the application path from the generated URL if exists
+            var pathBase = ViewContext.HttpContext?.Request?.PathBase ?? PathString.Empty;
+            PathString.FromUriComponent(Src).StartsWithSegments(pathBase, out var sourceFile);
 
             if (!_assetPipeline.TryGetAssetFromRoute(sourceFile, out var asset))
             {
-                asset = _assetPipeline.AddFiles(MimeTypes.TextJavascript, sourceFile).First();
+                asset = _assetPipeline.AddJavaScriptBundle(sourceFile, sourceFile);
             }
 
-            Src = srcAttribute;
-            output.Attributes.SetAttribute(SRC_ATTRIBUTE_NAME, $"{srcAttribute}?v={asset.GenerateCacheKey(ViewContext.HttpContext)}");
+            output.Attributes.SetAttribute(SRC_ATTRIBUTE_NAME, $"{Src}?v={asset.GenerateCacheKey(ViewContext.HttpContext)}");
         }
 
         private string GetBundleSuffix()
@@ -126,13 +146,31 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             if (output == null)
                 throw new ArgumentNullException(nameof(output));
 
-            if (!output.Attributes.ContainsName("type")) // we don't touch other types e.g. text/template
-                output.Attributes.SetAttribute("type", MimeTypes.TextJavascript);
+            var config = _appSettings.Get<WebOptimizerConfig>();
+
+            if (config.EnableTagHelperBundling != true && string.Equals(context.TagName, BUNDLE_TAG_NAME))
+            {
+                // do not show bundle tag
+                output.SuppressOutput();
+                return;
+            }
 
             output.TagName = SCRIPT_TAG_NAME;
             output.TagMode = TagMode.StartTagAndEndTag;
 
-            var config = _appSettings.Get<WebOptimizerConfig>();
+            if (!output.Attributes.ContainsName("type")) // we don't touch other types e.g. text/template
+                output.Attributes.SetAttribute("type", MimeTypes.TextJavascript);
+
+            ProcessSrcAttribute(context, output);
+
+            if (Location == ResourceLocation.Pinned)
+            {
+                if (string.IsNullOrEmpty(Src))
+                    output.Content.SetHtmlContent(await BuildInlineScriptTagAsync(output));
+                else
+                    ProcessAsset(output);
+                return;
+            }
 
             //bundling
             if (config.EnableJavaScriptBundling)
@@ -146,40 +184,29 @@ namespace Nop.Web.Framework.TagHelpers.Shared
                         return;
                     }
 
-                    if (Src is not null && !ExcludeFromBundle)
+                    if (!string.IsNullOrEmpty(Src) && !ExcludeFromBundle)
                     {
                         output.HandleJsBundle(_assetPipeline, ViewContext, config, Src, BundleKey ?? defaultBundleBuffix, string.Empty);
                         return;
                     }
                 }
-                else if (Src is not null) //TODO: must be reworked
-                {
-                    output.SuppressOutput();
-                    _nopHtmlHelper.AddScriptParts(Location, Src, DebugSrc, ExcludeFromBundle);
-                    return;
-                }
+
+                if (Location == ResourceLocation.Auto) // move to the footer bundle
+                    Location = ResourceLocation.Footer;
+            }
+            else
+            {
+                ProcessAsset(output);
             }
 
-            ProcessSrcAttribute(context, output);
+            var tagHtml = await BuildInlineScriptTagAsync(output);
 
-            //get JavaScript
-            var scriptTag = new TagBuilder(SCRIPT_TAG_NAME);
-
-            var childContent = await output.GetChildContentAsync();
-            var script = childContent.GetContent();
-
-            if (!string.IsNullOrEmpty(script))
-                scriptTag.InnerHtml.SetHtmlContent(new HtmlString(script));
-
-            scriptTag.MergeAttributes(await output.GetAttributeDictionaryAsync(), replaceExisting: false);
-
-            output.SuppressOutput();
-
-            var tagHtml = await scriptTag.RenderHtmlContentAsync();
-
-            if (Location == ResourceLocation.None)
+            if (Location == ResourceLocation.Auto)
             {
-                output.PostElement.AppendHtml(tagHtml + Environment.NewLine);
+                if (string.IsNullOrEmpty(Src))
+                    output.Content.SetHtmlContent(tagHtml);
+                else
+                    ProcessAsset(output);
                 return;
             }
 
@@ -187,6 +214,8 @@ namespace Nop.Web.Framework.TagHelpers.Shared
                 _nopHtmlHelper.AddInlineScriptParts(Location, tagHtml);
             else
                 _nopHtmlHelper.AddScriptParts(Location, Src, DebugSrc, ExcludeFromBundle);
+
+            output.SuppressOutput();
         }
 
         #endregion

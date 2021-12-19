@@ -116,25 +116,24 @@ namespace Nop.Web.Framework.UI
         /// <summary>
         /// Add CSS element
         /// </summary>
-        /// <param name="location">A location of the script element</param>
         /// <param name="src">Script path (minified version)</param>
         /// <param name="debugSrc">Script path (full debug version). If empty, then minified version will be used</param>
-        void AddCssFileParts(ResourceLocation location, string src, string debugSrc);
+        /// <param name="excludeFromBundle">A value indicating whether to exclude this style sheet from bundling</param>
+        void AddCssFileParts(string src, string debugSrc, bool excludeFromBundle = false);
 
         /// <summary>
         /// Append CSS element
         /// </summary>
-        /// <param name="location">A location of the script element</param>
         /// <param name="src">Script path (minified version)</param>
         /// <param name="debugSrc">Script path (full debug version). If empty, then minified version will be used</param>
-        void AppendCssFileParts(ResourceLocation location, string src, string debugSrc);
+        /// <param name="excludeFromBundle">A value indicating whether to exclude this style sheet from bundling</param>
+        void AppendCssFileParts(string src, string debugSrc, bool excludeFromBundle = false);
 
         /// <summary>
         /// Generate all CSS parts
         /// </summary>
-        /// <param name="location">A location of the script element</param>
         /// <returns>Generated HTML string</returns>
-        IHtmlContent GenerateCssFiles(ResourceLocation location);
+        IHtmlContent GenerateCssFiles();
 
         /// <summary>
         /// Add canonical URL element to the <![CDATA[<head>]]>

@@ -36,7 +36,7 @@
     @*This is used so that themes can inject content into the header*@
     @await Html.PartialAsync("Head")
 
-    @NopHtml.GenerateCssFiles(ResourceLocation.Head)
+    @NopHtml.GenerateCssFiles()
     <style-bundle /> @* bundle tag must be below other link tags *@
 
     @await Component.InvokeAsync("Widget", new { widgetZone = PublicWidgetZones.HeadHtmlTag })
