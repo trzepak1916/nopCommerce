@@ -89,7 +89,7 @@ namespace Nop.Web.Framework.UI
             if (url == PathString.Empty)
                 return keyPrefix;
 
-            return (url.ToString().Replace("/", "") + Enum.GetName(location) + key).TrimStart('.').ToLowerInvariant();
+            return (url.ToString().Replace("/", "") + "." + Enum.GetName(location) + key).TrimStart('.').ToLowerInvariant();
         }
 
         #endregion
@@ -321,7 +321,7 @@ namespace Nop.Web.Framework.UI
 
             var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
 
-            if (woConfig.EnableJavaScriptBundling && woConfig.EnableTagHelperBundling == false && _scriptParts[location].Any(item => !item.ExcludeFromBundle))
+            if (woConfig.EnableJavaScriptBundling && _scriptParts[location].Any(item => !item.ExcludeFromBundle))
             {
                 var bundleKey = string.Concat("/js/", GetAssetKey(woConfig.JavaScriptBundleSuffix, location), ".js");
 
@@ -495,7 +495,7 @@ namespace Nop.Web.Framework.UI
 
             var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
 
-            if (woConfig.EnableCssBundling && woConfig.EnableTagHelperBundling == false && _cssParts.Any(item => !item.ExcludeFromBundle))
+            if (woConfig.EnableCssBundling && _cssParts.Any(item => !item.ExcludeFromBundle))
             {
                 var bundleKey = string.Concat("/css/", GetAssetKey(woConfig.CssBundleSuffix, ResourceLocation.Head), ".css");
 

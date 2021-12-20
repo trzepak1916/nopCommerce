@@ -37,7 +37,6 @@
     @await Html.PartialAsync("Head")
 
     @NopHtml.GenerateCssFiles()
-    <style-bundle /> @* bundle tag must be below other link tags *@
 
     @await Component.InvokeAsync("Widget", new { widgetZone = PublicWidgetZones.HeadHtmlTag })
     @NopHtml.GenerateCanonicalUrls()
@@ -74,9 +73,6 @@
     <script src="~/js/public.countryselect.js"></script>
     <script src="~/js/public.ajaxcart.js"></script>
     <script src="~/js/public.common.js"></script>
-
-    <!-- FooterScripts  -->
-    <script-bundle />
 
     @NopHtml.GenerateScripts(ResourceLocation.Footer)
     @NopHtml.GenerateInlineScripts(ResourceLocation.Footer)

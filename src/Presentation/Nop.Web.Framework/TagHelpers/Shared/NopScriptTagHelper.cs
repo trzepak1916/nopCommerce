@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
@@ -18,7 +17,6 @@ using Nop.Web.Framework.Configuration;
 using Nop.Web.Framework.Extensions;
 using Nop.Web.Framework.UI;
 using WebOptimizer;
-using WebOptimizer.Extensions;
 
 namespace Nop.Web.Framework.TagHelpers.Shared
 {
@@ -26,16 +24,10 @@ namespace Nop.Web.Framework.TagHelpers.Shared
     /// Script bundling tag helper
     /// </summary>
     [HtmlTargetElement(SCRIPT_TAG_NAME)]
-    [HtmlTargetElement(BUNDLE_TAG_NAME)]
     public class NopScriptTagHelper : UrlResolutionTagHelper
     {
         #region Constants
-
-        private const string BUNDLE_TAG_NAME = "script-bundle";
         private const string SCRIPT_TAG_NAME = "script";
-
-        private const string BUNDLE_DESTINATION_KEY_NAME = "asp-bundle-dest-key";
-        private const string BUNDLE_KEY_NAME = "asp-bundle-key";
         private const string EXCLUDE_FROM_BUNDLE_ATTRIBUTE_NAME = "asp-exclude-from-bundle";
         private const string DEBUG_SRC_ATTRIBUTE_NAME = "asp-debug-src";
         private const string LOCATION_ATTRIBUTE_NAME = "asp-location";
@@ -123,17 +115,6 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             output.Attributes.SetAttribute(SRC_ATTRIBUTE_NAME, $"{Src}?v={asset.GenerateCacheKey(ViewContext.HttpContext)}");
         }
 
-        private string GetBundleSuffix()
-        {
-            var bundleSuffix = _appSettings.Get<WebOptimizerConfig>().JavaScriptBundleSuffix;
-
-            //to avoid collisions in controllers with the same names
-            if (ViewContext.RouteData.Values.TryGetValue("area", out var area))
-                bundleSuffix = $"{bundleSuffix}.{area}".ToLowerInvariant();
-
-            return bundleSuffix;
-        }
-
         #endregion
 
         #region Methods
@@ -148,14 +129,6 @@ namespace Nop.Web.Framework.TagHelpers.Shared
 
             var config = _appSettings.Get<WebOptimizerConfig>();
 
-            if (config.EnableTagHelperBundling != true && string.Equals(context.TagName, BUNDLE_TAG_NAME))
-            {
-                // do not show bundle tag
-                output.SuppressOutput();
-                return;
-            }
-
-            output.TagName = SCRIPT_TAG_NAME;
             output.TagMode = TagMode.StartTagAndEndTag;
 
             if (!output.Attributes.ContainsName("type")) // we don't touch other types e.g. text/template
@@ -163,55 +136,29 @@ namespace Nop.Web.Framework.TagHelpers.Shared
 
             ProcessSrcAttribute(context, output);
 
+            if (Location == ResourceLocation.Auto)
+            {
+                // move script to the footer bundle when bundling is enabled
+                Location = config.EnableJavaScriptBundling ? ResourceLocation.Footer : ResourceLocation.Pinned;
+            }
+
             if (Location == ResourceLocation.Pinned)
             {
                 if (string.IsNullOrEmpty(Src))
-                    output.Content.SetHtmlContent(await BuildInlineScriptTagAsync(output));
-                else
-                    ProcessAsset(output);
-                return;
-            }
-
-            //bundling
-            if (config.EnableJavaScriptBundling)
-            {
-                if (config.EnableTagHelperBundling == true)
                 {
-                    var defaultBundleBuffix = GetBundleSuffix();
-                    if (string.Equals(context.TagName, BUNDLE_TAG_NAME))
-                    {
-                        output.HandleJsBundle(_assetPipeline, ViewContext, config, Src, string.Empty, BundleDestinationKey ?? defaultBundleBuffix);
-                        return;
-                    }
-
-                    if (!string.IsNullOrEmpty(Src) && !ExcludeFromBundle)
-                    {
-                        output.HandleJsBundle(_assetPipeline, ViewContext, config, Src, BundleKey ?? defaultBundleBuffix, string.Empty);
-                        return;
-                    }
+                    output.SuppressOutput();
+                    output.Content.SetHtmlContent(await BuildInlineScriptTagAsync(output));
+                }
+                else
+                {
+                    ProcessAsset(output);
                 }
 
-                if (Location == ResourceLocation.Auto) // move to the footer bundle
-                    Location = ResourceLocation.Footer;
-            }
-            else
-            {
-                ProcessAsset(output);
-            }
-
-            var tagHtml = await BuildInlineScriptTagAsync(output);
-
-            if (Location == ResourceLocation.Auto)
-            {
-                if (string.IsNullOrEmpty(Src))
-                    output.Content.SetHtmlContent(tagHtml);
-                else
-                    ProcessAsset(output);
                 return;
             }
 
             if (string.IsNullOrEmpty(Src))
-                _nopHtmlHelper.AddInlineScriptParts(Location, tagHtml);
+                _nopHtmlHelper.AddInlineScriptParts(Location, await BuildInlineScriptTagAsync(output));
             else
                 _nopHtmlHelper.AddScriptParts(Location, Src, DebugSrc, ExcludeFromBundle);
 
@@ -239,18 +186,6 @@ namespace Nop.Web.Framework.TagHelpers.Shared
         /// </summary>
         [HtmlAttributeName(EXCLUDE_FROM_BUNDLE_ATTRIBUTE_NAME)]
         public bool ExcludeFromBundle { get; set; }
-
-        /// <summary>
-        /// A key of a bundle to collect
-        /// </summary>
-        [HtmlAttributeName(BUNDLE_KEY_NAME)]
-        public string BundleKey { get; set; }
-
-        /// <summary>
-        /// A key that defines the destination for the bundle.
-        /// </summary>
-        [HtmlAttributeName(BUNDLE_DESTINATION_KEY_NAME)]
-        public string BundleDestinationKey { get; set; }
 
         /// <summary>
         /// Address of the external script to use
