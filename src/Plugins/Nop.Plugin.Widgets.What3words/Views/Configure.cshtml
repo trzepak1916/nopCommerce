@@ -1,0 +1,33 @@
+﻿@model Nop.Plugin.Widgets.What3words.Models.ConfigurationModel
+@using Nop.Plugin.Widgets.What3words;
+
+@{
+    Layout = "_ConfigurePlugin";
+}
+
+<form asp-controller="What3words" asp-action="Configure" method="post">
+     <div class="cards-group">
+        <div class="card card-default">
+            <div class="card-body">
+                <p>
+                    Please find more info <a href="https://what3words.com/about" target="_blank">here.</a>
+                </p>
+                <hr/>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-label asp-for="Enabled" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="Enabled" />
+                        <span asp-validation-for="Enabled"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-9 offset-md-3">
+                        <input type="submit" name="save" class="btn btn-primary" value="@T("Admin.Common.Save")" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
