@@ -6,8 +6,11 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +19,7 @@ using Nop.Core;
 using Nop.Core.Configuration;
 using Nop.Core.Domain.Seo;
 using Nop.Web.Framework.Configuration;
+using Nop.Web.Framework.Mvc.Routing;
 using WebOptimizer;
 
 namespace Nop.Web.Framework.UI
@@ -76,20 +80,13 @@ namespace Nop.Web.Framework.UI
 
         private string GetAssetKey(string key, ResourceLocation location)
         {
-            var request = _actionContextAccessor.ActionContext?.HttpContext.Request;
-
-            if (request is null)
-                return string.Empty;
-
             var keyPrefix = Enum.GetName(location) + key;
+            var routeKey = GetRouteName(handleDefaultRoutes: true);
 
-            //remove the application path from the generated URL if exists
-            request.Path.StartsWithSegments(request.PathBase, out var url);
-
-            if (url == PathString.Empty)
+            if (string.IsNullOrEmpty(routeKey))
                 return keyPrefix;
 
-            return (url.ToString().Replace("/", "") + "." + Enum.GetName(location) + key).TrimStart('.').ToLowerInvariant();
+            return string.Concat(routeKey, ".", keyPrefix);
         }
 
         #endregion
@@ -727,6 +724,52 @@ namespace Nop.Web.Framework.UI
         public virtual string GetActiveMenuItemSystemName()
         {
             return _activeAdminMenuSystemName;
+        }
+
+        /// <summary>
+        /// Get the route name associated with the request rendering this page
+        /// </summary>
+        /// <param name="handleDefaultRoutes">A value indicating whether to build the name using engine information unless otherwise specified</param>
+        /// <returns>Route name</returns>
+        public virtual string GetRouteName(bool handleDefaultRoutes = false)
+        {
+            var actionContext = _actionContextAccessor.ActionContext;
+
+            if (actionContext is null)
+                return string.Empty;
+
+            var httpContext = actionContext.HttpContext;
+            var routeName = httpContext.GetEndpoint()?.Metadata.GetMetadata<RouteNameMetadata>()?.RouteName ?? string.Empty;
+
+            if (!string.IsNullOrEmpty(routeName) && routeName != "areaRoute")
+                return routeName;
+
+            //then try to get a generic one (actually it's an action name, not the route)
+            if (httpContext.GetRouteValue(NopPathRouteDefaults.SeNameFieldKey) is not null &&
+                httpContext.GetRouteValue(NopPathRouteDefaults.ActionFieldKey) is string actionKey)
+            {
+                //there are some cases when the action name doesn't match the route name
+                //it's not easy to make them the same, so we'll just handle them here
+                return actionKey switch
+                {
+                    "ProductDetails" => "Product",
+                    "TopicDetails" => "Topic",
+                    _ => actionKey
+                };
+            }
+
+            if (handleDefaultRoutes)
+            {
+                return actionContext.ActionDescriptor switch
+                {
+                    ControllerActionDescriptor controllerAction => string.Concat(controllerAction.ControllerName, controllerAction.ActionName),
+                    CompiledPageActionDescriptor compiledPage => string.Concat(compiledPage.AreaName, compiledPage.ViewEnginePath.Replace("/", "")),
+                    PageActionDescriptor pageAction => string.Concat(pageAction.AreaName, pageAction.ViewEnginePath.Replace("/", "")),
+                    _ => actionContext.ActionDescriptor.DisplayName.Replace("/", "")
+                };
+            }
+
+            return routeName;
         }
 
         #endregion

@@ -214,5 +214,12 @@ namespace Nop.Web.Framework.UI
         /// </summary>
         /// <returns>System name</returns>
         string GetActiveMenuItemSystemName();
+
+        /// <summary>
+        /// Get the route name associated with the request rendering this page
+        /// </summary>
+        /// <param name="handleDefaultRoutes">A value indicating whether to build the name using engine information unless otherwise specified</param>
+        /// <returns>Route name</returns>
+        string GetRouteName(bool handleDefaultRoutes = false);
     }
 }

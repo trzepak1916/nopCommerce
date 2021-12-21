@@ -21,7 +21,7 @@
     var displayMiniProfiler = appSettings.Get<CommonConfig>().MiniProfilerEnabled && await permissionService.AuthorizeAsync(StandardPermissionProvider.AccessProfiling);
 
     //event
-    await eventPublisher.PublishAsync(new PageRenderingEvent(this.Html));
+    await eventPublisher.PublishAsync(new PageRenderingEvent(NopHtml));
 }
 <!DOCTYPE html>
 <html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" dir="@Html.GetUIDirection(!await Html.ShouldUseRtlThemeAsync())" class="@NopHtml.GeneratePageCssClasses()">
