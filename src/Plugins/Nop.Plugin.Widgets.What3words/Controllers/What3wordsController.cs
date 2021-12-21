@@ -20,33 +20,38 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
         #region Fields
 
         private readonly IGenericAttributeService _genericAttributeService;
-        private readonly IPermissionService _permissionService;
         private readonly ILocalizationService _localizationService;
         private readonly INotificationService _notificationService;
+        private readonly IPermissionService _permissionService;
         private readonly ISettingService _settingService;
-        private readonly ServiceManager _serviceManager;
+        private readonly IStoreContext _storeContext;
         private readonly IWorkContext _workContext;
+        private readonly ServiceManager _serviceManager;
+        private readonly What3wordsSettings _what3WordsSettings;
 
         #endregion
 
         #region Ctor
 
-        public What3wordsController(
-            IGenericAttributeService genericAttributeService,
-            IPermissionService permissionService,
+        public What3wordsController(IGenericAttributeService genericAttributeService,
             ILocalizationService localizationService,
             INotificationService notificationService,
+            IPermissionService permissionService,
             ISettingService settingService,
+            IStoreContext storeContext,
+            IWorkContext workContext,
             ServiceManager serviceManager,
-            IWorkContext workContext)
+            What3wordsSettings what3WordsSettings)
         {
             _genericAttributeService = genericAttributeService;
-            _permissionService = permissionService;
             _localizationService = localizationService;
             _notificationService = notificationService;
+            _permissionService = permissionService;
             _settingService = settingService;
-            _serviceManager = serviceManager;
+            _storeContext = storeContext;
             _workContext = workContext;
+            _serviceManager = serviceManager;
+            _what3WordsSettings = what3WordsSettings;
         }
 
         #endregion
@@ -60,13 +65,9 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
             if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageWidgets))
                 return AccessDeniedView();
 
-            //load settings for active store scope
-            var what3wordsSettings = await _settingService.LoadSettingAsync<What3wordsSettings>();
-
-            //prepare model
             var model = new ConfigurationModel
             {
-                Enabled = what3wordsSettings.Enabled
+                Enabled = _what3WordsSettings.Enabled
             };
 
             return View("~/Plugins/Widgets.What3words/Views/Configure.cshtml", model);
@@ -75,8 +76,6 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
         [HttpPost]
         [AuthorizeAdmin]
         [Area(AreaNames.Admin)]
-        [FormValueRequired("save")]
-        [AutoValidateAntiforgeryToken]
         public async Task<IActionResult> Configure(ConfigurationModel model)
         {
             if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageWidgets))
@@ -85,26 +84,18 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
             if (!ModelState.IsValid)
                 return await Configure();
 
-            //load settings for active store scope
-            var what3wordsSettings = await _settingService.LoadSettingAsync<What3wordsSettings>();
-
-            //set settings
-            what3wordsSettings.Enabled = model.Enabled;
-            await _settingService.SaveSettingAsync(what3wordsSettings, settings => settings.Enabled, clearCache: false);
+            _what3WordsSettings.Enabled = model.Enabled;
 
             //request client api key
-            what3wordsSettings.ApiKey = await _serviceManager.GetClientApiAsync();
-
-            if (string.IsNullOrEmpty(what3wordsSettings.ApiKey))
+            _what3WordsSettings.ApiKey = await _serviceManager.GetClientApiAsync();
+            if (string.IsNullOrEmpty(_what3WordsSettings.ApiKey))
             {
-                _notificationService.ErrorNotification(await _localizationService.GetResourceAsync("Plugins.Widgets.What3words.Configuration.Filed"));
+                _notificationService
+                    .ErrorNotification(await _localizationService.GetResourceAsync("Plugins.Widgets.What3words.Configuration.Failed"));
                 return await Configure();
             }
 
-            await _settingService.SaveSettingAsync(what3wordsSettings, settings => settings.ApiKey, clearCache: false);
-
-            //now clear settings cache
-            await _settingService.ClearCacheAsync();
+            await _settingService.SaveSettingAsync(_what3WordsSettings);
 
             _notificationService.SuccessNotification(await _localizationService.GetResourceAsync("Admin.Plugins.Saved"));
 
@@ -119,19 +110,22 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
         [HttpPost]
         public async Task<IActionResult> SelectedSuggestion(string words, string prefix)
         {
+            if (!_what3WordsSettings.Enabled)
+                return Ok();
+
             var customer = await _workContext.GetCurrentCustomerAsync();
-            switch (prefix)
+            var store = await _storeContext.GetCurrentStoreAsync();
+
+            if (prefix == What3wordsDefaults.BillingAddressPrefix)
             {
-                case "BillingNewAddress":
-                    //We save both addresses, since shipping address may be the same as billing address
-                    await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.What3wordsBillingAddressAttribute, words);
-                    await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.What3wordsShippingAddressAttribute, words);
-                    break;
-                case "ShippingNewAddress":
-                    await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.What3wordsShippingAddressAttribute, words);
-                    break;
+                //We save both addresses, since shipping address may be the same as billing address
+                await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.BillingAddressAttribute, words, store.Id);
+                await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.ShippingAddressAttribute, words, store.Id);
             }
-            
+
+            if (prefix == What3wordsDefaults.ShippingAddressPrefix)
+                await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.ShippingAddressAttribute, words, store.Id);
+
             return Ok();
         }
     }

@@ -1,6 +1,6 @@
 ﻿{
   "Group": "Widgets",
-  "FriendlyName": "What3words",
+  "FriendlyName": "what3words",
   "SystemName": "Widgets.What3words",
   "Version": "1.00",
   "SupportedVersions": [ "4.50" ],

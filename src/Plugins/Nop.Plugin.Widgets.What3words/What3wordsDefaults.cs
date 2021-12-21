@@ -2,10 +2,13 @@
 
 namespace Nop.Plugin.Widgets.What3words
 {
+    /// <summary>
+    /// Represents plugin constants
+    /// </summary>
     public static class What3wordsDefaults
     {
         /// <summary>
-        /// Retargeting system name
+        /// Gets the system name
         /// </summary>
         public static string SystemName => "Widgets.What3words";
 
@@ -37,36 +40,26 @@ namespace Nop.Plugin.Widgets.What3words
         /// <summary>
         /// Gets a key of the attribute to store words for what3words billing address
         /// </summary>
-        public static string What3wordsBillingAddressAttribute => "What3wordsBillingAddress";
+        public static string BillingAddressAttribute => "What3wordsBillingAddress";
 
         /// <summary>
         /// Gets a key of the attribute to store words for what3words shipping address
         /// </summary>
-        public static string What3wordsShippingAddressAttribute => "What3wordsShippingAddress";
+        public static string ShippingAddressAttribute => "What3wordsShippingAddress";
 
         /// <summary>
-        /// Gets a key of the attribute to store words for what3words Order billing address
+        /// Gets a field prefix on the customer address pages
         /// </summary>
-        public static string What3wordsOrderBillingAddressAttribute => "What3wordsOrderBillingAddress";
+        public static string AddressPrefix => "Address";
 
         /// <summary>
-        /// Gets a key of the attribute to store words for what3words Order shipping address
+        /// Gets a field prefix on the checkout billing address page
         /// </summary>
-        public static string What3wordsOrderShippingAddressAttribute => "What3wordsOrderShippingAddress";
+        public static string BillingAddressPrefix => "BillingNewAddress";
 
         /// <summary>
-        /// Gets a key of the attribute to store words for what3words Customer billing address
+        /// Gets a field prefix on the checkout billing address page
         /// </summary>
-        public static string What3wordsCustomerBillingAddressAttribute => "What3wordsCustomerBillingAddress";
-
-        /// <summary>
-        /// Gets a key of the attribute to store words for what3words Customer shipping address
-        /// </summary>
-        public static string What3wordsCustomerShippingAddressAttribute => "What3wordsCustomerShippingAddress";
-
-        /// <summary>
-        /// Gets the route name of customer address edit endpoint
-        /// </summary>
-        public static string CustomerInfoAddressRouteName => "CustomerAddressEdit";
+        public static string ShippingAddressPrefix => "ShippingNewAddress";
     }
 }

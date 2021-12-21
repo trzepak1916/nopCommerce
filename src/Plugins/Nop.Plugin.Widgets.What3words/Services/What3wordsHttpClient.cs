@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Nop.Core;
 using System;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Nop.Plugin.Widgets.What3words.Services
@@ -36,23 +37,30 @@ namespace Nop.Plugin.Widgets.What3words.Services
         #region Methods
 
         /// <summary>
-        /// Request client api
+        /// Request client API key
         /// </summary>
+        /// <param name="storeUrl">Store url</param>
         /// <returns>The asynchronous task whose result contains response details</returns>
-        public async Task<string> RequestAsyncClientApi()
+        public async Task<string> RequestClientApiAsync(string storeUrl)
         {
             try
             {
+                //prepare request parameters
+                var requestString = JsonConvert.SerializeObject(new { Url = storeUrl });
+                var requestContent = new StringContent(requestString, Encoding.Default, MimeTypes.ApplicationJson);
+
                 //execute request and get response
-                var httpResponse = await _httpClient.GetStringAsync("what3words/client-api");
+                var httpResponse = await _httpClient.PostAsync("what3words/client-api", requestContent);
+                httpResponse.EnsureSuccessStatusCode();
 
                 //return result
-                var result = JsonConvert.DeserializeAnonymousType(httpResponse,
-                                new { Message = string.Empty, ClientApi = string.Empty });
-                
-                if (string.IsNullOrEmpty(result.Message))
+                var responseString = await httpResponse.Content.ReadAsStringAsync();
+                var result = JsonConvert
+                    .DeserializeAnonymousType(responseString, new { Message = string.Empty, ClientApi = string.Empty });
+
+                if (!string.IsNullOrEmpty(result.Message))
                     throw new NopException($"Generating client keys error - {result.Message}");
-                
+
                 return result.ClientApi;
             }
             catch (AggregateException exception)

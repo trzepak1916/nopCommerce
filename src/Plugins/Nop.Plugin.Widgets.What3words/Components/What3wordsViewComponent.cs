@@ -1,10 +1,9 @@
 ﻿using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Routing;
 using Nop.Core;
 using Nop.Plugin.Widgets.What3words.Models;
 using Nop.Services.Cms;
+using Nop.Services.Logging;
 using Nop.Web.Framework.Components;
 using Nop.Web.Framework.Infrastructure;
 
@@ -15,54 +14,70 @@ namespace Nop.Plugin.Widgets.What3words.Components
     {
         #region Fields
 
+        private readonly ILogger _logger;
         private readonly IWidgetPluginManager _widgetPluginManager;
-        private readonly What3wordsSettings _what3WordsSettings;
         private readonly IWorkContext _workContext;
+        private readonly What3wordsSettings _what3WordsSettings;
 
         #endregion
 
         #region Ctor
 
-        public What3wordsViewComponent(
+        public What3wordsViewComponent(ILogger logger,
             IWidgetPluginManager widgetPluginManager,
-            What3wordsSettings what3WordsSettings,
-            IWorkContext workContext
-            )
+            IWorkContext workContext,
+            What3wordsSettings what3WordsSettings)
         {
+            _logger = logger;
             _widgetPluginManager = widgetPluginManager;
-            _what3WordsSettings = what3WordsSettings;
             _workContext = workContext;
+            _what3WordsSettings = what3WordsSettings;
         }
 
         #endregion
 
         #region Methods
 
-        /// <returns>A task that represents the asynchronous operation</returns>
+        /// <summary>
+        /// Invoke the widget view component
+        /// </summary>
+        /// <param name="widgetZone">Widget zone</param>
+        /// <param name="additionalData">Additional parameters</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the view component result
+        /// </returns>
         public async Task<IViewComponentResult> InvokeAsync(string widgetZone, object additionalData)
         {
+            if (!widgetZone.Equals(PublicWidgetZones.AddressBottom))
+                return Content(string.Empty);
+
             //ensure that what3words widget is active and enabled
             var customer = await _workContext.GetCurrentCustomerAsync();
-            if (!(await _widgetPluginManager.IsPluginActiveAsync(What3wordsDefaults.SystemName, customer) &&
-                _what3WordsSettings.Enabled))
+            if (!await _widgetPluginManager.IsPluginActiveAsync(What3wordsDefaults.SystemName, customer))
                 return Content(string.Empty);
 
-            var routeName = HttpContext.GetEndpoint()?.Metadata.GetMetadata<RouteNameMetadata>()?.RouteName;
-            if (routeName.Equals(What3wordsDefaults.CustomerInfoAddressRouteName))
-                    return Content(string.Empty);
+            if (!_what3WordsSettings.Enabled)
+                return Content(string.Empty);
 
-            if (widgetZone.Equals(PublicWidgetZones.AddressBottom))
+            //ignore on the customer address pages
+            if (ViewData.TemplateInfo.HtmlFieldPrefix == What3wordsDefaults.AddressPrefix)
+                return Content(string.Empty);
+
+            if (string.IsNullOrEmpty(_what3WordsSettings.ApiKey))
             {
-                var model = new What3wordsAddressModel
-                {
-                    ApiKey = _what3WordsSettings.ApiKey,
-                    Prefix = ViewData.TemplateInfo.HtmlFieldPrefix
-                };
-
-                return View("~/Plugins/Widgets.What3words/Views/PublicInfo.cshtml", model);
-            }
-            else
+                await _logger.ErrorAsync("what3words error: API key is not set", customer: customer);
                 return Content(string.Empty);
+            }
+
+            var model = new What3wordsAddressModel
+            {
+                ApiKey = _what3WordsSettings.ApiKey,
+                Prefix = ViewData.TemplateInfo.HtmlFieldPrefix
+            };
+
+            return View("~/Plugins/Widgets.What3words/Views/PublicInfo.cshtml", model);
+
         }
 
         #endregion

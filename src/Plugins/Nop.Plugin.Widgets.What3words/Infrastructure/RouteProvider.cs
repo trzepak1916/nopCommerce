@@ -1,11 +1,13 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
-using Nop.Web.Framework;
 using Nop.Web.Framework.Mvc.Routing;
 
 namespace Nop.Plugin.Widgets.What3words.Infrastructure
 {
-    public  class RouteProvider : IRouteProvider
+    /// <summary>
+    /// Represents plugin route provider
+    /// </summary>
+    public class RouteProvider : IRouteProvider
     {
         /// <summary>
         /// Register routes
@@ -13,8 +15,9 @@ namespace Nop.Plugin.Widgets.What3words.Infrastructure
         /// <param name="endpointRouteBuilder">Route builder</param>
         public void RegisterRoutes(IEndpointRouteBuilder endpointRouteBuilder)
         {
-            endpointRouteBuilder.MapControllerRoute(What3wordsDefaults.ConfigurationRouteName, "Plugins/What3words/Configure",
-                new { controller = "What3words", action = "Configure", area = AreaNames.Admin });
+            endpointRouteBuilder.MapControllerRoute(name: What3wordsDefaults.ConfigurationRouteName,
+                pattern: "Admin/What3words/Configure",
+                defaults: new { controller = "What3words", action = "Configure" });
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-﻿@model Nop.Plugin.Widgets.What3words.Models.What3wordsAddressModel
+﻿@model What3wordsAddressModel
 
 <link rel="stylesheet" href="~/Plugins/Widgets.What3words/Content/styles.css" />
 
@@ -9,17 +9,16 @@
     <label for="w3w">@T("Plugins.Widgets.What3words.Address.Field.Label"):</label>
     <what3words-autosuggest variant="inherit" api_key="@(Model.ApiKey)" id="what3words-autosuggest_@(Model.Prefix)">
         <input placeholder="e.g. ///lock.sprout.radar"
-                type="text"
-                name="w3w"
-                id="what3words"
-                optional />
+               type="text"
+               name="w3w"
+               id="what3words"
+               optional />
     </what3words-autosuggest>
     <div class="what3words_tooltip">?
         <div class="what3words_tooltiptext">
             <div>@T("Plugins.Widgets.What3words.Address.Field.Tooltip")</div>
             <a href="http://delivery.w3w.co/" target="_blank">@T("Plugins.Widgets.What3words.Address.Field.Tooltip.Link")</a>
         </div>
-            
     </div>
 </div>
 
