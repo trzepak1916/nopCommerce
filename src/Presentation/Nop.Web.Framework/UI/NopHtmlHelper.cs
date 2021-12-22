@@ -98,6 +98,10 @@ namespace Nop.Web.Framework.UI
         private string GetAssetKey(string key, ResourceLocation location)
         {
             var keyPrefix = Enum.GetName(location) + key;
+
+            if (ShouldUseRtlThemeAsync().GetAwaiter().GetResult())
+                keyPrefix += ".rtl";
+
             var routeKey = GetRouteName(handleDefaultRoutes: true);
 
             if (string.IsNullOrEmpty(routeKey))
