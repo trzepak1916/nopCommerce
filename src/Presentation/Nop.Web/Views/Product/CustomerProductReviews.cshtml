@@ -81,7 +81,7 @@
                     </div>
                 </div>
             }
-            var pager = await Html.PagerAsync(Model.PagerModel);
+            var pager = await NopHtml.PagerAsync(Model.PagerModel);
             if (!string.IsNullOrEmpty(await pager.RenderHtmlContentAsync()))
             {
                 <div class="pager">

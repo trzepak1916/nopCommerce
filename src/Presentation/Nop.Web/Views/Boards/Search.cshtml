@@ -88,7 +88,7 @@
                     forumId = Model.ForumIdSelected.ToString();
                 }
 
-                var pager = await Html.PagerAsync(new PagerModel(localizationService)
+                var pager = await NopHtml.PagerAsync(new PagerModel(localizationService)
                 {
                     PageSize = Model.TopicPageSize,
                     TotalRecords = Model.TopicTotalRecords,

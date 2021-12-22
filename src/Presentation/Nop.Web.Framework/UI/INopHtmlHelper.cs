@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Html;
+﻿using System.Threading.Tasks;
+using Microsoft.AspNetCore.Html;
+using Nop.Web.Framework.Models;
+using Nop.Web.Framework.UI.Paging;
 
 namespace Nop.Web.Framework.UI
 {
@@ -216,10 +219,52 @@ namespace Nop.Web.Framework.UI
         string GetActiveMenuItemSystemName();
 
         /// <summary>
+        /// Ger JQuery Datepicker date format from the .net current culture
+        /// </summary>
+        /// <returns>Format string that supported in JQuery Datepicker.</returns>
+        string GetJQueryDateFormat();
+
+        /// <summary>
         /// Get the route name associated with the request rendering this page
         /// </summary>
         /// <param name="handleDefaultRoutes">A value indicating whether to build the name using engine information unless otherwise specified</param>
         /// <returns>Route name</returns>
         string GetRouteName(bool handleDefaultRoutes = false);
+
+        /// <summary>
+        /// Get a value of the text flow uses for the current UI culture
+        /// </summary>
+        /// <param name="ignoreRtl">A value indicating whether to we should ignore RTL language property for admin area. False by default</param>
+        /// <returns>"rtl" if text flows from right to left; otherwise, "ltr".</returns>
+        string GetUIDirection(bool ignoreRtl = false);
+
+        /// <summary>
+        /// Prepare a common pager
+        /// </summary>
+        /// <param name="model">Pager model</param>
+        /// <returns>Pager</returns>
+        /// <remarks>We have two pagers: The first one can have custom routes. The second one just adds query string parameter</remarks>
+        Pager Pager(IPageableModel model);
+
+        /// <summary>
+        /// Prepare a common pager
+        /// </summary>
+        /// <param name="model">Pager model</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the pager
+        /// </returns>
+        /// <remarks>We have two pagers: The first one can have custom routes. The second one just adds query string parameter</remarks>
+        Task<IHtmlContent> PagerAsync(PagerModel model);
+
+        /// <summary>
+        /// Return a value indicating whether the working language and theme support RTL (right-to-left)
+        /// </summary>
+        /// <param name="themeName">Theme name</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the value
+        /// </returns>
+        Task<bool> ShouldUseRtlThemeAsync(string themeName = null);
     }
 }

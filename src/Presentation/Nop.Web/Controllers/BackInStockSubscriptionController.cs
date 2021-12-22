@@ -10,9 +10,9 @@ using Nop.Services.Customers;
 using Nop.Services.Localization;
 using Nop.Services.Messages;
 using Nop.Services.Seo;
+using Nop.Web.Framework.Models;
 using Nop.Web.Framework.Mvc.Filters;
 using Nop.Web.Models.Catalog;
-using Nop.Web.Models.Common;
 
 namespace Nop.Web.Controllers
 {

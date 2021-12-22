@@ -21,6 +21,7 @@ using Nop.Services.Payments;
 using Nop.Services.Seo;
 using Nop.Services.Shipping;
 using Nop.Services.Vendors;
+using Nop.Web.Framework.Models;
 using Nop.Web.Models.Common;
 using Nop.Web.Models.Order;
 
