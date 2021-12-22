@@ -329,7 +329,7 @@ namespace Nop.Web.Framework.UI
 
                 if (_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
                 {
-                    if (bundleAsset.SourceFiles.Count != sources.Length)
+                    if (bundleAsset.SourceFiles.Count != sources.Length || !bundleAsset.SourceFiles.SequenceEqual(sources))
                     {
                         bundleAsset.SourceFiles.Clear();
                         foreach (var source in sources)
@@ -503,7 +503,7 @@ namespace Nop.Web.Framework.UI
 
                 var bundleAsset = getOrCreateBundle(bundleKey, sources);
 
-                if (bundleAsset.SourceFiles.Count != sources.Length)
+                if (bundleAsset.SourceFiles.Count != sources.Length || !bundleAsset.SourceFiles.SequenceEqual(sources))
                 {
                     bundleAsset.SourceFiles.Clear();
                     foreach (var source in sources)
