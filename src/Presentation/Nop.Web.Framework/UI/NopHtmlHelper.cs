@@ -99,9 +99,6 @@ namespace Nop.Web.Framework.UI
         {
             var keyPrefix = Enum.GetName(location) + key;
 
-            if (ShouldUseRtlThemeAsync().GetAwaiter().GetResult())
-                keyPrefix += ".rtl";
-
             var routeKey = GetRouteName(handleDefaultRoutes: true);
 
             if (string.IsNullOrEmpty(routeKey))
@@ -515,7 +512,12 @@ namespace Nop.Web.Framework.UI
 
             if (woConfig.EnableCssBundling && _cssParts.Any(item => !item.ExcludeFromBundle))
             {
-                var bundleKey = string.Concat("/css/", GetAssetKey(woConfig.CssBundleSuffix, ResourceLocation.Head), ".css");
+                var bundleSuffix = woConfig.CssBundleSuffix;
+
+                if (ShouldUseRtlThemeAsync().GetAwaiter().GetResult())
+                    bundleSuffix += ".rtl";
+
+                var bundleKey = string.Concat("/css/", GetAssetKey(bundleSuffix, ResourceLocation.Head), ".css");
 
                 var sources = _cssParts
                     .Where(item => !item.ExcludeFromBundle)
@@ -908,7 +910,7 @@ namespace Nop.Web.Framework.UI
 
                         links.AppendFormat("<a title=\"{0}\" href=\"{1}\">{2}</a>",
                                 await _localizationService.GetResourceAsync("Pager.FirstPageTitle"),
-                                model.UseRouteLinks ? 
+                                model.UseRouteLinks ?
                                     urlHelper.RouteUrl(model.RouteActionName, values: model.RouteValues) :
                                     urlHelper.ActionLink(model.RouteActionName, values: model.RouteValues),
                                 await model.GetFirstButtonTextAsync());
