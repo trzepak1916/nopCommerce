@@ -98,22 +98,13 @@ namespace Nop.Plugin.Widgets.What3words.Services
                     //move value from customer to the customer address for next use
                     await _genericAttributeService.SaveAttributeAsync<string>(customer, attributeName, null, order.StoreId);
                     if (customerAddress is not null)
-                    {
-                        await _genericAttributeService.SaveAttributeAsync(customerAddress, attributeName, addressValue);
-                        
-                        if (attributeName == What3wordsDefaults.BillingAddressAttribute)
-                        {
-                            //we save both addresses, since shipping address may be the same as billing address
-                            await _genericAttributeService
-                                .SaveAttributeAsync(customerAddress, What3wordsDefaults.ShippingAddressAttribute, addressValue);
-                        }
-                    }
+                        await _genericAttributeService.SaveAttributeAsync(customerAddress, What3wordsDefaults.ValueAttribute, addressValue);
                 }
                 else
                 {
                     //or get value from the existing customer address
                     addressValue = customerAddress is not null
-                        ? await _genericAttributeService.GetAttributeAsync<string>(customerAddress, attributeName)
+                        ? await _genericAttributeService.GetAttributeAsync<string>(customerAddress, What3wordsDefaults.ValueAttribute)
                         : null;
                 }
 
@@ -122,7 +113,7 @@ namespace Nop.Plugin.Widgets.What3words.Services
                 {
                     var orderAddress = await _addressService.GetAddressByIdAsync(orderAddressId ?? 0);
                     if (orderAddress is not null)
-                        await _genericAttributeService.SaveAttributeAsync(orderAddress, attributeName, addressValue);
+                        await _genericAttributeService.SaveAttributeAsync(orderAddress, What3wordsDefaults.ValueAttribute, addressValue);
                 }
             }
 
@@ -140,8 +131,7 @@ namespace Nop.Plugin.Widgets.What3words.Services
             if (address is null)
                 throw new ArgumentNullException(nameof(address));
 
-            await _genericAttributeService.SaveAttributeAsync<string>(address, What3wordsDefaults.BillingAddressAttribute, null);
-            await _genericAttributeService.SaveAttributeAsync<string>(address, What3wordsDefaults.ShippingAddressAttribute, null);
+            await _genericAttributeService.SaveAttributeAsync<string>(address, What3wordsDefaults.ValueAttribute, null);
         }
 
         #endregion

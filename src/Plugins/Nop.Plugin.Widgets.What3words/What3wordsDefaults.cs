@@ -38,6 +38,11 @@ namespace Nop.Plugin.Widgets.What3words
         public static string ConfigurationRouteName => "Plugin.Widgets.What3words.Configure";
 
         /// <summary>
+        /// Gets a key of the attribute to store words for address
+        /// </summary>
+        public static string ValueAttribute => "What3wordsValue";
+
+        /// <summary>
         /// Gets a key of the attribute to store words for what3words billing address
         /// </summary>
         public static string BillingAddressAttribute => "What3wordsBillingAddress";

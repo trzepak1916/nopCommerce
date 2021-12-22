@@ -64,50 +64,35 @@ namespace Nop.Plugin.Widgets.What3words.Components
             if (!_what3WordsSettings.Enabled)
                 return Content(string.Empty);
 
-            var summaryModel = additionalData as ShoppingCartModel.OrderReviewDataModel;
-            var detailsModel = additionalData as OrderDetailsModel;
-            if (summaryModel is null && detailsModel is null)
-                return Content(string.Empty);
-
             var store = await _storeContext.GetCurrentStoreAsync();
+            var value = widgetZone.Equals(PublicWidgetZones.OrderSummaryBillingAddress)
+                ? await _genericAttributeService.GetAttributeAsync<string>(customer, What3wordsDefaults.BillingAddressAttribute, store.Id)
+                : (widgetZone.Equals(PublicWidgetZones.OrderSummaryShippingAddress)
+                ? await _genericAttributeService.GetAttributeAsync<string>(customer, What3wordsDefaults.ShippingAddressAttribute, store.Id)
+                : null);
 
-            var value = string.Empty;
-            if (widgetZone.Equals(PublicWidgetZones.OrderSummaryBillingAddress) && summaryModel is not null)
+            if (string.IsNullOrEmpty(value) && additionalData is ShoppingCartModel.OrderReviewDataModel summaryModel)
             {
-                value = await _genericAttributeService
-                    .GetAttributeAsync<string>(customer, What3wordsDefaults.BillingAddressAttribute, store.Id);
-                if (string.IsNullOrEmpty(value))
-                {
-                    var address = await _addressService.GetAddressByIdAsync(summaryModel.BillingAddress.Id);
-                    if (address is not null)
-                        value = await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.BillingAddressAttribute);
-                }
+                var address = widgetZone.Equals(PublicWidgetZones.OrderSummaryBillingAddress)
+                    ? await _addressService.GetAddressByIdAsync(summaryModel.BillingAddress.Id)
+                    : (widgetZone.Equals(PublicWidgetZones.OrderSummaryShippingAddress)
+                    ? await _addressService.GetAddressByIdAsync(summaryModel.ShippingAddress.Id)
+                    : null);
+                value = address is not null
+                    ? await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ValueAttribute)
+                    : null;
             }
 
-            if (widgetZone.Equals(PublicWidgetZones.OrderSummaryShippingAddress) && summaryModel is not null)
+            if (string.IsNullOrEmpty(value) && additionalData is OrderDetailsModel detailsModel)
             {
-                value = await _genericAttributeService
-                    .GetAttributeAsync<string>(customer, What3wordsDefaults.ShippingAddressAttribute, store.Id);
-                if (string.IsNullOrEmpty(value))
-                {
-                    var address = await _addressService.GetAddressByIdAsync(summaryModel.ShippingAddress.Id);
-                    if (address is not null)
-                        value = await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ShippingAddressAttribute);
-                }
-            }
-
-            if (widgetZone.Equals(PublicWidgetZones.OrderDetailsBillingAddress) && detailsModel is not null)
-            {
-                var address = await _addressService.GetAddressByIdAsync(detailsModel.BillingAddress.Id);
-                if (address is not null)
-                    value = await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.BillingAddressAttribute);
-            }
-
-            if (widgetZone.Equals(PublicWidgetZones.OrderDetailsShippingAddress) && detailsModel is not null)
-            {
-                var address = await _addressService.GetAddressByIdAsync(detailsModel.ShippingAddress.Id);
-                if (address is not null)
-                    value = await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ShippingAddressAttribute);
+                var address = widgetZone.Equals(PublicWidgetZones.OrderDetailsBillingAddress)
+                    ? await _addressService.GetAddressByIdAsync(detailsModel.BillingAddress.Id)
+                    : (widgetZone.Equals(PublicWidgetZones.OrderDetailsShippingAddress)
+                    ? await _addressService.GetAddressByIdAsync(detailsModel.ShippingAddress.Id)
+                    : null);
+                value = address is not null
+                    ? await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ValueAttribute)
+                    : null;
             }
 
             if (string.IsNullOrEmpty(value))

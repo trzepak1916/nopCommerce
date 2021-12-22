@@ -58,21 +58,14 @@ namespace Nop.Plugin.Widgets.What3words.Components
             if (additionalData is not OrderModel model)
                 return Content(string.Empty);
 
-            var value = string.Empty;
-            if (widgetZone.Equals(AdminWidgetZones.OrderBillingAddressDetailsBottom))
-            {
-                var address = await _addressService.GetAddressByIdAsync(model.BillingAddress.Id);
-                if (address is not null)
-                    value = await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.BillingAddressAttribute);
-            }
-
-            if (widgetZone.Equals(AdminWidgetZones.OrderShippingAddressDetailsBottom))
-            {
-                var address = await _addressService.GetAddressByIdAsync(model.ShippingAddress.Id);
-                if (address is not null)
-                    value = await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ShippingAddressAttribute);
-            }
-
+            var address = widgetZone.Equals(AdminWidgetZones.OrderBillingAddressDetailsBottom)
+                ? await _addressService.GetAddressByIdAsync(model.BillingAddress.Id)
+                : (widgetZone.Equals(AdminWidgetZones.OrderShippingAddressDetailsBottom)
+                ? await _addressService.GetAddressByIdAsync(model.ShippingAddress.Id)
+                : null);
+            var value = address is not null
+                ? await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ValueAttribute)
+                : null;
             if (string.IsNullOrEmpty(value))
                 return Content(string.Empty);
 
