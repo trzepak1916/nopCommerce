@@ -282,6 +282,7 @@ namespace Nop.Web.Framework.UI
             {
                 ExcludeFromBundle = excludeFromBundle,
                 IsAsync = isAsync,
+                IsLocal = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext).IsLocalUrl(src),
                 Src = src,
                 DebugSrc = debugSrc
             });
@@ -310,6 +311,7 @@ namespace Nop.Web.Framework.UI
             {
                 ExcludeFromBundle = excludeFromBundle,
                 IsAsync = isAsync,
+                IsLocal = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext).IsLocalUrl(src),
                 Src = src,
                 DebugSrc = debugSrc
             });
@@ -330,18 +332,16 @@ namespace Nop.Web.Framework.UI
 
             var debugModel = _webHostEnvironment.IsDevelopment();
 
-            var result = new StringBuilder();
-
-            var woConfig = _appSettings.Get<WebOptimizerConfig>();
-
             var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
 
+            var result = new StringBuilder();
+            var woConfig = _appSettings.Get<WebOptimizerConfig>();
             if (woConfig.EnableJavaScriptBundling && _scriptParts[location].Any(item => !item.ExcludeFromBundle))
             {
                 var bundleKey = string.Concat("/js/", GetAssetKey(woConfig.JavaScriptBundleSuffix, location), ".js");
 
                 var sources = _scriptParts[location]
-                    .Where(item => !item.ExcludeFromBundle)
+                    .Where(item => !item.ExcludeFromBundle && item.IsLocal)
                     .Select(item => debugModel ? item.DebugSrc : item.Src)
                     .Distinct().ToArray();
 
@@ -364,12 +364,19 @@ namespace Nop.Web.Framework.UI
             }
 
             var scripts = _scriptParts[location]
-                .Where(item => !woConfig.EnableJavaScriptBundling || item.ExcludeFromBundle)
+                .Where(item => !woConfig.EnableJavaScriptBundling || item.ExcludeFromBundle || !item.IsLocal)
                 .Distinct();
 
             foreach (var item in scripts)
             {
                 var src = debugModel ? item.DebugSrc : item.Src;
+
+                if (!item.IsLocal)
+                {
+                    result.AppendFormat("<script type=\"{0}\" src=\"{1}\"></script>", MimeTypes.TextJavascript, src);
+                    result.Append(Environment.NewLine);
+                    continue;
+                }
 
                 //remove the application path from the generated URL if exists
                 PathString.FromUriComponent(src).StartsWithSegments(pathBase, out var url);
@@ -465,6 +472,7 @@ namespace Nop.Web.Framework.UI
             _cssParts.Add(new CssReferenceMeta
             {
                 ExcludeFromBundle = excludeFromBundle,
+                IsLocal = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext).IsLocalUrl(src),
                 Src = src,
                 DebugSrc = debugSrc
             });
@@ -486,6 +494,8 @@ namespace Nop.Web.Framework.UI
 
             _cssParts.Insert(0, new CssReferenceMeta
             {
+                ExcludeFromBundle = excludeFromBundle,
+                IsLocal = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext).IsLocalUrl(src),
                 Src = src,
                 DebugSrc = debugSrc
             });
@@ -520,7 +530,7 @@ namespace Nop.Web.Framework.UI
                 var bundleKey = string.Concat("/css/", GetAssetKey(bundleSuffix, ResourceLocation.Head), ".css");
 
                 var sources = _cssParts
-                    .Where(item => !item.ExcludeFromBundle)
+                    .Where(item => !item.ExcludeFromBundle && item.IsLocal)
                     .Distinct()
                     .Select(item => debugModel ? item.DebugSrc : item.Src).ToArray();
 
@@ -538,12 +548,19 @@ namespace Nop.Web.Framework.UI
             }
 
             var styles = _cssParts
-                    .Where(item => !woConfig.EnableCssBundling || item.ExcludeFromBundle)
+                    .Where(item => !woConfig.EnableCssBundling || item.ExcludeFromBundle || !item.IsLocal)
                     .Distinct();
 
             foreach (var item in styles)
             {
                 var src = debugModel ? item.DebugSrc : item.Src;
+
+                if (!item.IsLocal)
+                {
+                    result.AppendFormat("<link rel=\"stylesheet\" type=\"{0}\" href=\"{1}\" />", MimeTypes.TextCss, src);
+                    result.Append(Environment.NewLine);
+                    continue;
+                }
 
                 //remove the application path from the generated URL if exists
                 PathString.FromUriComponent(src).StartsWithSegments(pathBase, out var url);
@@ -565,9 +582,9 @@ namespace Nop.Web.Framework.UI
             /// <returns></returns>//
             IAsset getOrCreateBundle(string bundleKey, params string[] sourceFiles)
             {
-                //we call this method directly to avoid applying fingerprint
                 if (!_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
                 {
+                    //we call this method directly to avoid applying fingerprint
                     bundleAsset = _assetPipeline.AddBundle(bundleKey, $"{MimeTypes.TextCss}; charset=UTF-8", sourceFiles)
                         .EnforceFileExtensions(".css")
                         .AdjustRelativePaths()
@@ -1051,6 +1068,11 @@ namespace Nop.Web.Framework.UI
             public bool IsAsync { get; set; }
 
             /// <summary>
+            /// A value indicating whether the Src is local
+            /// </summary>
+            public bool IsLocal { get; set; }
+
+            /// <summary>
             /// Src for production
             /// </summary>
             public string Src { get; set; }
@@ -1080,6 +1102,12 @@ namespace Nop.Web.Framework.UI
             /// Src for debugging
             /// </summary>
             public string DebugSrc { get; set; }
+
+            /// <summary>
+            /// A value indicating whether the Src is local
+            /// </summary>
+            public bool IsLocal { get; set; }
+
         }
 
         #endregion

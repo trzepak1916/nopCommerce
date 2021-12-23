@@ -103,6 +103,13 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             if (string.IsNullOrEmpty(Src))
                 return;
 
+            var urlHelper = UrlHelperFactory.GetUrlHelper(ViewContext);
+            if (!urlHelper.IsLocalUrl(Src))
+            {
+                output.Attributes.SetAttribute(SRC_ATTRIBUTE_NAME, Src);
+                return;
+            }
+
             //remove the application path from the generated URL if exists
             var pathBase = ViewContext.HttpContext?.Request?.PathBase ?? PathString.Empty;
             PathString.FromUriComponent(Src).StartsWithSegments(pathBase, out var sourceFile);
