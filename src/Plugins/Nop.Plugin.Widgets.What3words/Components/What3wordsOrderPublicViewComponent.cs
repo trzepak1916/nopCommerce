@@ -68,19 +68,24 @@ namespace Nop.Plugin.Widgets.What3words.Components
             var value = widgetZone.Equals(PublicWidgetZones.OrderSummaryBillingAddress)
                 ? await _genericAttributeService.GetAttributeAsync<string>(customer, What3wordsDefaults.BillingAddressAttribute, store.Id)
                 : (widgetZone.Equals(PublicWidgetZones.OrderSummaryShippingAddress)
-                ? await _genericAttributeService.GetAttributeAsync<string>(customer, What3wordsDefaults.ShippingAddressAttribute, store.Id)
-                : null);
+                    ? await _genericAttributeService.GetAttributeAsync<string>(customer, What3wordsDefaults.ShippingAddressAttribute, store.Id)
+                    : null);
 
-            if (string.IsNullOrEmpty(value) && additionalData is ShoppingCartModel.OrderReviewDataModel summaryModel)
+            if (additionalData is ShoppingCartModel.OrderReviewDataModel summaryModel)
             {
                 var address = widgetZone.Equals(PublicWidgetZones.OrderSummaryBillingAddress)
                     ? await _addressService.GetAddressByIdAsync(summaryModel.BillingAddress.Id)
                     : (widgetZone.Equals(PublicWidgetZones.OrderSummaryShippingAddress)
-                    ? await _addressService.GetAddressByIdAsync(summaryModel.ShippingAddress.Id)
-                    : null);
-                value = address is not null
-                    ? await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ValueAttribute)
-                    : null;
+                        ? await _addressService.GetAddressByIdAsync(summaryModel.ShippingAddress.Id)
+                        : null);
+
+                var aValue = await _genericAttributeService.GetAttributeAsync<string>(address, What3wordsDefaults.ValueAttribute);
+
+                value = !string.IsNullOrEmpty(aValue) 
+                    ? aValue 
+                    : !string.IsNullOrEmpty(value) 
+                        ? value 
+                        : null;
             }
 
             if (string.IsNullOrEmpty(value) && additionalData is OrderDetailsModel detailsModel)
