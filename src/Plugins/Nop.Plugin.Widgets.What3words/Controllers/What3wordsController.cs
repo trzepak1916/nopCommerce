@@ -1,11 +1,12 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Nop.Core;
 using Nop.Plugin.Widgets.What3words.Models;
 using Nop.Plugin.Widgets.What3words.Services;
-using Nop.Services.Common;
 using Nop.Services.Configuration;
 using Nop.Services.Localization;
+using Nop.Services.Logging;
 using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Web.Framework;
@@ -14,43 +15,45 @@ using Nop.Web.Framework.Mvc.Filters;
 
 namespace Nop.Plugin.Widgets.What3words.Controllers
 {
+    [AuthorizeAdmin]
+    [Area(AreaNames.Admin)]
     [AutoValidateAntiforgeryToken]
     public class What3wordsController : BasePluginController
     {
         #region Fields
 
-        private readonly IGenericAttributeService _genericAttributeService;
         private readonly ILocalizationService _localizationService;
+        private readonly ILogger _logger;
         private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly ISettingService _settingService;
         private readonly IStoreContext _storeContext;
         private readonly IWorkContext _workContext;
-        private readonly ServiceManager _serviceManager;
+        private readonly What3wordsHttpClient _what3WordsHttpClient;
         private readonly What3wordsSettings _what3WordsSettings;
 
         #endregion
 
         #region Ctor
 
-        public What3wordsController(IGenericAttributeService genericAttributeService,
-            ILocalizationService localizationService,
+        public What3wordsController(ILocalizationService localizationService,
+            ILogger logger,
             INotificationService notificationService,
             IPermissionService permissionService,
             ISettingService settingService,
             IStoreContext storeContext,
             IWorkContext workContext,
-            ServiceManager serviceManager,
+            What3wordsHttpClient what3WordsHttpClient,
             What3wordsSettings what3WordsSettings)
         {
-            _genericAttributeService = genericAttributeService;
             _localizationService = localizationService;
+            _logger = logger;
             _notificationService = notificationService;
             _permissionService = permissionService;
             _settingService = settingService;
             _storeContext = storeContext;
             _workContext = workContext;
-            _serviceManager = serviceManager;
+            _what3WordsHttpClient = what3WordsHttpClient;
             _what3WordsSettings = what3WordsSettings;
         }
 
@@ -58,8 +61,6 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
 
         #region Methods
 
-        [AuthorizeAdmin]
-        [Area(AreaNames.Admin)]
         public async Task<IActionResult> Configure()
         {
             if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageWidgets))
@@ -74,8 +75,6 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
         }
 
         [HttpPost]
-        [AuthorizeAdmin]
-        [Area(AreaNames.Admin)]
         public async Task<IActionResult> Configure(ConfigurationModel model)
         {
             if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageWidgets))
@@ -84,49 +83,31 @@ namespace Nop.Plugin.Widgets.What3words.Controllers
             if (!ModelState.IsValid)
                 return await Configure();
 
-            _what3WordsSettings.Enabled = model.Enabled;
-
-            //request client api key
-            _what3WordsSettings.ApiKey = await _serviceManager.GetClientApiAsync();
+            //request client API key if doesn't exist
             if (string.IsNullOrEmpty(_what3WordsSettings.ApiKey))
             {
-                _notificationService
-                    .ErrorNotification(await _localizationService.GetResourceAsync("Plugins.Widgets.What3words.Configuration.Failed"));
-                return await Configure();
+                try
+                {
+                    var store = await _storeContext.GetCurrentStoreAsync();
+                    var storeUrl = $"{store.Url?.TrimEnd('/')}/";
+                    var apiKey = await _what3WordsHttpClient.RequestClientApiAsync(storeUrl);
+                    _what3WordsSettings.ApiKey = apiKey;
+                }
+                catch (Exception exception)
+                {
+                    await _logger.ErrorAsync($"what3words error: {exception.Message}.", exception, await _workContext.GetCurrentCustomerAsync());
+                    _notificationService
+                        .ErrorNotification(await _localizationService.GetResourceAsync("Plugins.Widgets.What3words.Configuration.Failed"));
+                    return await Configure();
+                }
             }
 
+            _what3WordsSettings.Enabled = model.Enabled;
             await _settingService.SaveSettingAsync(_what3WordsSettings);
 
             _notificationService.SuccessNotification(await _localizationService.GetResourceAsync("Admin.Plugins.Saved"));
 
             return await Configure();
-        }
-
-        /// <summary>
-        /// Save address
-        /// </summary>
-        /// <param name="words">Address value</param>
-        /// <param name="prefix">"BillingNewAddress" - Billing address; "ShippingNewAddress" - Shipping address</param>
-        [HttpPost]
-        public async Task<IActionResult> SelectedSuggestion(string words, string prefix)
-        {
-            if (!_what3WordsSettings.Enabled)
-                return Ok();
-
-            var customer = await _workContext.GetCurrentCustomerAsync();
-            var store = await _storeContext.GetCurrentStoreAsync();
-
-            if (prefix == What3wordsDefaults.BillingAddressPrefix)
-            {
-                //We save both addresses, since shipping address may be the same as billing address
-                await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.BillingAddressAttribute, words, store.Id);
-                await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.ShippingAddressAttribute, words, store.Id);
-            }
-
-            if (prefix == What3wordsDefaults.ShippingAddressPrefix)
-                await _genericAttributeService.SaveAttributeAsync(customer, What3wordsDefaults.ShippingAddressAttribute, words, store.Id);
-
-            return Ok();
         }
     }
 

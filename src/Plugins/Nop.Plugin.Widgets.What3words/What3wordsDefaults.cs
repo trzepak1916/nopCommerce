@@ -38,24 +38,14 @@ namespace Nop.Plugin.Widgets.What3words
         public static string ConfigurationRouteName => "Plugin.Widgets.What3words.Configure";
 
         /// <summary>
+        /// Gets the name of autosuggest component
+        /// </summary>
+        public static string ComponentName => "w3w";
+
+        /// <summary>
         /// Gets a key of the attribute to store words for address
         /// </summary>
-        public static string ValueAttribute => "What3wordsValue";
-
-        /// <summary>
-        /// Gets a key of the attribute to store words for what3words billing address
-        /// </summary>
-        public static string BillingAddressAttribute => "What3wordsBillingAddress";
-
-        /// <summary>
-        /// Gets a key of the attribute to store words for what3words shipping address
-        /// </summary>
-        public static string ShippingAddressAttribute => "What3wordsShippingAddress";
-
-        /// <summary>
-        /// Gets a field prefix on the customer address pages
-        /// </summary>
-        public static string AddressPrefix => "Address";
+        public static string AddressValueAttribute => "What3wordsValue";
 
         /// <summary>
         /// Gets a field prefix on the checkout billing address page

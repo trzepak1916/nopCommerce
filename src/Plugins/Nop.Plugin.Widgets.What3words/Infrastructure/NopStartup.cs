@@ -20,7 +20,6 @@ namespace Nop.Plugin.Widgets.What3words.Infrastructure
         public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
         {
             services.AddHttpClient<What3wordsHttpClient>().WithProxy();
-            services.AddScoped<ServiceManager>();
         }
 
         /// <summary>

@@ -60,13 +60,16 @@ namespace Nop.Plugin.Widgets.What3words.Components
             if (!_what3WordsSettings.Enabled)
                 return Content(string.Empty);
 
-            //ignore on the customer address pages
-            if (ViewData.TemplateInfo.HtmlFieldPrefix == What3wordsDefaults.AddressPrefix)
-                return Content(string.Empty);
-
             if (string.IsNullOrEmpty(_what3WordsSettings.ApiKey))
             {
                 await _logger.ErrorAsync("what3words error: API key is not set", customer: customer);
+                return Content(string.Empty);
+            }
+
+            //display this on the checkout pages only
+            if (ViewData.TemplateInfo.HtmlFieldPrefix != What3wordsDefaults.BillingAddressPrefix &&
+                ViewData.TemplateInfo.HtmlFieldPrefix != What3wordsDefaults.ShippingAddressPrefix)
+            {
                 return Content(string.Empty);
             }
 

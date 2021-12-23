@@ -1,10 +1,10 @@
-﻿using Microsoft.Net.Http.Headers;
-using Newtonsoft.Json;
-using Nop.Core;
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Net.Http.Headers;
+using Newtonsoft.Json;
+using Nop.Core;
 
 namespace Nop.Plugin.Widgets.What3words.Services
 {
@@ -60,6 +60,9 @@ namespace Nop.Plugin.Widgets.What3words.Services
 
                 if (!string.IsNullOrEmpty(result.Message))
                     throw new NopException($"Generating client keys error - {result.Message}");
+
+                if (string.IsNullOrEmpty(result.ClientApi))
+                    throw new NopException($"API key is empty");
 
                 return result.ClientApi;
             }
