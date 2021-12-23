@@ -13,7 +13,7 @@ namespace Nop.Web.Framework.TagHelpers.Shared
     /// <summary>
     /// CSS bundling tag helper
     /// </summary>
-    [HtmlTargetElement(LINK_TAG_NAME)]
+    [HtmlTargetElement(LINK_TAG_NAME, Attributes = "[rel=stylesheet]")]
     public class NopLinkTagHelper : UrlResolutionTagHelper
     {
         #region Constants
@@ -71,7 +71,6 @@ namespace Nop.Web.Framework.TagHelpers.Shared
                 throw new ArgumentNullException(nameof(output));
 
             output.Attributes.SetAttribute("type", MimeTypes.TextCss);
-            output.Attributes.SetAttribute("rel", "stylesheet");
             output.TagMode = TagMode.SelfClosing;
 
             ProcessSrcAttribute(context, output);
