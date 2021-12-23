@@ -5,7 +5,7 @@
     {
         @await Html.PartialAsync("_PickupPoints", Model.PickupPointsModel, new ViewDataDictionary(ViewData)
                                 {
-                                    { "scriptLocation", ResourceLocation.Pinned }
+                                    { "scriptLocation", ResourceLocation.None }
                                 })
         <script>
             $(document).ready(function () {

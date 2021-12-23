@@ -13,7 +13,7 @@ namespace Nop.Web.Framework.UI
         /// <summary>
         /// Pinned to the declaring place
         /// </summary>
-        Pinned,
+        None,
         /// <summary>
         /// Header
         /// </summary>

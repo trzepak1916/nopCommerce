@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using System.Text;
+﻿using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -7,13 +6,9 @@ using Nop.Core;
 using Nop.Core.Infrastructure;
 using Nop.Services.Localization;
 using Nop.Services.Seo;
-using Nop.Services.Themes;
 using Nop.Services.Topics;
 using Nop.Web.Framework.Extensions;
-using Nop.Web.Framework.Themes;
-using Nop.Web.Framework.UI.Paging;
 using Nop.Web.Models.Boards;
-using Nop.Web.Models.Common;
 
 namespace Nop.Web.Extensions
 {

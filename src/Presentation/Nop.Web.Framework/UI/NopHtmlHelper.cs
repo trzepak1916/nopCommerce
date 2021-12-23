@@ -107,6 +107,41 @@ namespace Nop.Web.Framework.UI
             return string.Concat(routeKey, ".", keyPrefix);
         }
 
+        /// <summary>
+        /// Get or create an asset to the optimization pipeline.
+        /// </summary>
+        /// <param name="bundlePath">A registered route</param>
+        /// <param name="sourceFiles">Relative file names of the sources to optimize; if not specified, will use <paramref name="bundlePath"/></param>
+        /// <returns>The bundle</returns>
+        private IAsset GetOrCreateBundle(string bundlePath, Func<string, string[], IAsset> createAsset, params string[] sourceFiles)
+        {
+            if(string.IsNullOrEmpty(bundlePath))
+                throw new ArgumentNullException(nameof(bundlePath));
+
+            if (createAsset is null)
+                throw new ArgumentNullException(nameof(createAsset));
+
+            if (sourceFiles.Length == 0)
+                sourceFiles = new[] { bundlePath };
+
+            //remove the base path from the generated URL if exists
+            var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
+            sourceFiles = sourceFiles.Select(src => src.RemoveApplicationPathFromRawUrl(pathBase)).ToArray();
+
+            if (!_assetPipeline.TryGetAssetFromRoute(bundlePath, out var bundleAsset))
+            {
+                bundleAsset = createAsset(bundlePath, sourceFiles);
+            }
+            else if (bundleAsset.SourceFiles.Count != sourceFiles.Length || !bundleAsset.SourceFiles.SequenceEqual(sourceFiles))
+            {
+                bundleAsset.SourceFiles.Clear();
+                foreach (var source in sourceFiles)
+                    bundleAsset.TryAddSourceFile(source);
+            }
+
+            return bundleAsset;
+        }
+
         #endregion
 
         #region Methods
@@ -332,8 +367,6 @@ namespace Nop.Web.Framework.UI
 
             var debugModel = _webHostEnvironment.IsDevelopment();
 
-            var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
-
             var result = new StringBuilder();
             var woConfig = _appSettings.Get<WebOptimizerConfig>();
             if (woConfig.EnableJavaScriptBundling && _scriptParts[location].Any(item => !item.ExcludeFromBundle))
@@ -345,20 +378,9 @@ namespace Nop.Web.Framework.UI
                     .Select(item => debugModel ? item.DebugSrc : item.Src)
                     .Distinct().ToArray();
 
-                if (_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
-                {
-                    if (bundleAsset.SourceFiles.Count != sources.Length || !bundleAsset.SourceFiles.SequenceEqual(sources))
-                    {
-                        bundleAsset.SourceFiles.Clear();
-                        foreach (var source in sources)
-                            bundleAsset.TryAddSourceFile(source);
-                    }
-                }
-                else
-                {
-                    bundleAsset = _assetPipeline.AddJavaScriptBundle(bundleKey, sources);
-                }
+                var bundleAsset = GetOrCreateBundle(bundleKey, _assetPipeline.AddJavaScriptBundle, sources);
 
+                var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
                 result.AppendFormat("<script type=\"{0}\" src=\"{1}{2}?v={3}\"></script>",
                     MimeTypes.TextJavascript, pathBase, bundleAsset.Route, bundleAsset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
             }
@@ -378,20 +400,13 @@ namespace Nop.Web.Framework.UI
                     continue;
                 }
 
-                //remove the application path from the generated URL if exists
-                PathString.FromUriComponent(src).StartsWithSegments(pathBase, out var url);
+                var asset = GetOrCreateBundle(src, _assetPipeline.AddJavaScriptBundle);
 
-                if (!_assetPipeline.TryGetAssetFromRoute(url, out var asset))
-                {
-                    asset = _assetPipeline.AddJavaScriptBundle(url, url);
-                }
-
-                result.AppendFormat("<script type=\"{0}\" src=\"{1}{2}?v={3}\"></script>",
-                    MimeTypes.TextJavascript, pathBase, asset.Route, asset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
+                result.AppendFormat("<script type=\"{0}\" src=\"{1}?v={2}\"></script>",
+                    MimeTypes.TextJavascript, asset.Route, asset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
 
                 result.Append(Environment.NewLine);
             }
-
             return new HtmlString(result.ToString());
         }
 
@@ -510,21 +525,17 @@ namespace Nop.Web.Framework.UI
             if (_cssParts.Count == 0)
                 return HtmlString.Empty;
 
-            var urlHelper = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext);
-
             var debugModel = _webHostEnvironment.IsDevelopment();
 
             var result = new StringBuilder();
 
             var woConfig = _appSettings.Get<WebOptimizerConfig>();
 
-            var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
-
             if (woConfig.EnableCssBundling && _cssParts.Any(item => !item.ExcludeFromBundle))
             {
                 var bundleSuffix = woConfig.CssBundleSuffix;
 
-                if (ShouldUseRtlThemeAsync().GetAwaiter().GetResult())
+                if (ShouldUseRtlThemeAsync().Result)
                     bundleSuffix += ".rtl";
 
                 var bundleKey = string.Concat("/css/", GetAssetKey(bundleSuffix, ResourceLocation.Head), ".css");
@@ -532,17 +543,20 @@ namespace Nop.Web.Framework.UI
                 var sources = _cssParts
                     .Where(item => !item.ExcludeFromBundle && item.IsLocal)
                     .Distinct()
+                    //remove the application path from the generated URL if exists
                     .Select(item => debugModel ? item.DebugSrc : item.Src).ToArray();
 
-                var bundleAsset = getOrCreateBundle(bundleKey, sources);
-
-                if (bundleAsset.SourceFiles.Count != sources.Length || !bundleAsset.SourceFiles.SequenceEqual(sources))
+                var bundleAsset = GetOrCreateBundle(bundleKey, (bundleKey, assetFiles) =>
                 {
-                    bundleAsset.SourceFiles.Clear();
-                    foreach (var source in sources)
-                        bundleAsset.TryAddSourceFile(source);
-                }
+                    return _assetPipeline.AddBundle(bundleKey, $"{MimeTypes.TextCss}; charset=UTF-8", assetFiles)
+                        .EnforceFileExtensions(".css")
+                        .AdjustRelativePaths()
+                        .Concatenate()
+                        .AddResponseHeader(HeaderNames.XContentTypeOptions, "nosniff")
+                        .MinifyCss();
+                }, sources);
 
+                var pathBase = _actionContextAccessor.ActionContext?.HttpContext?.Request?.PathBase ?? PathString.Empty;
                 result.AppendFormat("<link rel=\"stylesheet\" type=\"{0}\" href=\"{1}{2}?v={3}\" />",
                     MimeTypes.TextCss, pathBase, bundleAsset.Route, bundleAsset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
             }
@@ -562,39 +576,22 @@ namespace Nop.Web.Framework.UI
                     continue;
                 }
 
-                //remove the application path from the generated URL if exists
-                PathString.FromUriComponent(src).StartsWithSegments(pathBase, out var url);
-
-                var asset = getOrCreateBundle(url, url);
-
-                result.AppendFormat("<link rel=\"stylesheet\" type=\"{0}\" href=\"{1}{2}?v={3}\" />",
-                    MimeTypes.TextCss, pathBase, asset.Route, asset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
-                result.AppendLine();
-            }
-
-            return new HtmlString(result.ToString());
-
-            /// <summary>
-            /// Get or create an asset to the optimization pipeline.
-            /// </summary>
-            /// <param name="bundleKey">A registered route</param>
-            /// <param name="sourceFiles">Relative file names of the sources to optimize</param>
-            /// <returns></returns>//
-            IAsset getOrCreateBundle(string bundleKey, params string[] sourceFiles)
-            {
-                if (!_assetPipeline.TryGetAssetFromRoute(bundleKey, out var bundleAsset))
+                var asset = GetOrCreateBundle(src, (bundleKey, assetFiles) =>
                 {
-                    //we call this method directly to avoid applying fingerprint
-                    bundleAsset = _assetPipeline.AddBundle(bundleKey, $"{MimeTypes.TextCss}; charset=UTF-8", sourceFiles)
+                    return _assetPipeline.AddBundle(bundleKey, $"{MimeTypes.TextCss}; charset=UTF-8", assetFiles)
                         .EnforceFileExtensions(".css")
                         .AdjustRelativePaths()
                         .Concatenate()
                         .AddResponseHeader(HeaderNames.XContentTypeOptions, "nosniff")
                         .MinifyCss();
-                }
+                });
 
-                return bundleAsset;
+                result.AppendFormat("<link rel=\"stylesheet\" type=\"{0}\" href=\"{1}?v={2}\" />",
+                    MimeTypes.TextCss, asset.Route, asset.GenerateCacheKey(_actionContextAccessor.ActionContext.HttpContext));
+                result.AppendLine();
             }
+
+            return new HtmlString(result.ToString());
         }
 
         /// <summary>
@@ -859,7 +856,7 @@ namespace Nop.Web.Framework.UI
                     ControllerActionDescriptor controllerAction => string.Concat(controllerAction.ControllerName, controllerAction.ActionName),
                     CompiledPageActionDescriptor compiledPage => string.Concat(compiledPage.AreaName, compiledPage.ViewEnginePath.Replace("/", "")),
                     PageActionDescriptor pageAction => string.Concat(pageAction.AreaName, pageAction.ViewEnginePath.Replace("/", "")),
-                    _ => actionContext.ActionDescriptor.DisplayName.Replace("/", "")
+                    _ => actionContext.ActionDescriptor.DisplayName?.Replace("/", "") ?? string.Empty
                 };
             }
 

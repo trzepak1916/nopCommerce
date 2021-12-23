@@ -146,10 +146,10 @@ namespace Nop.Web.Framework.TagHelpers.Shared
             if (Location == ResourceLocation.Auto)
             {
                 // move script to the footer bundle when bundling is enabled
-                Location = config.EnableJavaScriptBundling ? ResourceLocation.Footer : ResourceLocation.Pinned;
+                Location = config.EnableJavaScriptBundling ? ResourceLocation.Footer : ResourceLocation.None;
             }
 
-            if (Location == ResourceLocation.Pinned)
+            if (Location == ResourceLocation.None)
             {
                 if (string.IsNullOrEmpty(Src))
                 {

@@ -1,8 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.Routing;
-using Nop.Web.Framework.Mvc.Routing;
-using Nop.Web.Framework.UI;
+﻿using Nop.Web.Framework.UI;
 
 namespace Nop.Web.Framework.Events
 {
@@ -54,7 +50,7 @@ namespace Nop.Web.Framework.Events
                 return OverriddenRouteName;
 
             //or try to get a registered endpoint route name
-            return Helper.GetRouteName(handleDefaultRoutes: false);
+            return Helper.GetRouteName();
         }
 
         #endregion
