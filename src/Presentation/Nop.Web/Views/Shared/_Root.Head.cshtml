@@ -24,7 +24,7 @@
     await eventPublisher.PublishAsync(new PageRenderingEvent(NopHtml));
 }
 <!DOCTYPE html>
-<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" dir="@NopHtml.GetUIDirection(!await NopHtml.ShouldUseRtlThemeAsync())" class="@NopHtml.GeneratePageCssClasses()">
+<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" dir="@Html.GetUIDirection(!await Html.ShouldUseRtlThemeAsync())" class="@NopHtml.GeneratePageCssClasses()">
 <head>
     <title>@NopHtml.GenerateTitle()</title>
     <meta http-equiv="Content-type" content="text/html;charset=UTF-8" />

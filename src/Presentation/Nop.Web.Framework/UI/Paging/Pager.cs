@@ -8,7 +8,6 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Html;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
 using Nop.Core;
@@ -26,9 +25,9 @@ namespace Nop.Web.Framework.UI.Paging
         #region Properties
 
         /// <summary>
-        /// HttpContext
+        /// ViewContext
         /// </summary>
-        public HttpContext HttpContext { get; set; }
+        public ViewContext ViewContext { get; set; }
 
         #endregion
 
@@ -130,10 +129,10 @@ namespace Nop.Web.Framework.UI.Paging
 
         #region Ctor
 
-        public Pager(IPageableModel model, HttpContext context)
+        public Pager(IPageableModel model, ViewContext context)
         {
-            _model = model ?? throw new ArgumentNullException(nameof(model));
-            HttpContext = context ?? throw new ArgumentNullException(nameof(context));
+            _model = model;
+            ViewContext = context;
         }
 
         #endregion
@@ -524,9 +523,9 @@ namespace Nop.Web.Framework.UI.Paging
             var routeValues = new RouteValueDictionary();
 
             var parametersWithEmptyValues = new List<string>();
-            foreach (var key in HttpContext.Request.Query.Keys.Where(key => key != null))
+            foreach (var key in ViewContext.HttpContext.Request.Query.Keys.Where(key => key != null))
             {
-                var value = HttpContext.Request.Query[key].ToString();
+                var value = ViewContext.HttpContext.Request.Query[key].ToString();
                 if (_renderEmptyParameters && string.IsNullOrEmpty(value))
                 {
                     //we store query string parameters with empty values separately

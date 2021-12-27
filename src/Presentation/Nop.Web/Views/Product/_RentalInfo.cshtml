@@ -12,7 +12,7 @@
             var endDateControlId = $"rental_end_date_{Model.Id}";
             var dateControlChangeHandlerFuncName = $"on_rental_datepicker_select_{Model.Id}";
             
-            var datePickerFormat = NopHtml.GetJQueryDateFormat();//java-script format
+            var datePickerFormat = Html.GetJQueryDateFormat();//java-script format
             var isMobileDevice = userAgentHelper.IsMobileDevice();
 
             <div class="attribute-item">

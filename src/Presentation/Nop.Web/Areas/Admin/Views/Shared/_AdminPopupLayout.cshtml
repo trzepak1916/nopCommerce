@@ -12,7 +12,7 @@
     await eventPublisher.PublishAsync(new PageRenderingEvent(NopHtml));
 }
 <!DOCTYPE html>
-<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" dir="@NopHtml.GetUIDirection(localizationSettings.IgnoreRtlPropertyForAdminArea)">
+<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" dir="@Html.GetUIDirection(localizationSettings.IgnoreRtlPropertyForAdminArea)">
 <head>
     <title>@adminPageTitle</title>
     <meta http-equiv="Content-type" content="text/html;charset=UTF-8" />

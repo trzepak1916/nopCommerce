@@ -4,11 +4,9 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -22,12 +20,8 @@ using Nop.Core;
 using Nop.Core.Configuration;
 using Nop.Core.Domain.Seo;
 using Nop.Services.Localization;
-using Nop.Services.Themes;
 using Nop.Web.Framework.Configuration;
-using Nop.Web.Framework.Models;
 using Nop.Web.Framework.Mvc.Routing;
-using Nop.Web.Framework.Themes;
-using Nop.Web.Framework.UI.Paging;
 using WebOptimizer;
 
 namespace Nop.Web.Framework.UI
@@ -43,9 +37,6 @@ namespace Nop.Web.Framework.UI
         private readonly HtmlEncoder _htmlEncoder;
         private readonly IActionContextAccessor _actionContextAccessor;
         private readonly IAssetPipeline _assetPipeline;
-        private readonly ILocalizationService _localizationService;
-        private readonly IThemeContext _themeContext;
-        private readonly IThemeProvider _themeProvider;
         private readonly IUrlHelperFactory _urlHelperFactory;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly SeoSettings _seoSettings;
@@ -72,9 +63,6 @@ namespace Nop.Web.Framework.UI
             IActionContextAccessor actionContextAccessor,
             HtmlEncoder htmlEncoder,
             IAssetPipeline assetPipeline,
-            ILocalizationService localizationService,
-            IThemeContext themeContext,
-            IThemeProvider themeProvider,
             IUrlHelperFactory urlHelperFactory,
             IWebHostEnvironment webHostEnvironment,
             SeoSettings seoSettings)
@@ -83,9 +71,6 @@ namespace Nop.Web.Framework.UI
             _actionContextAccessor = actionContextAccessor;
             _htmlEncoder = htmlEncoder;
             _assetPipeline = assetPipeline;
-            _localizationService = localizationService;
-            _themeContext = themeContext;
-            _themeProvider = themeProvider;
             _urlHelperFactory = urlHelperFactory;
             _webHostEnvironment = webHostEnvironment;
             _seoSettings = seoSettings;
@@ -535,7 +520,7 @@ namespace Nop.Web.Framework.UI
             {
                 var bundleSuffix = woConfig.CssBundleSuffix;
 
-                if (ShouldUseRtlThemeAsync().Result)
+                if (CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft)
                     bundleSuffix += ".rtl";
 
                 var bundleKey = string.Concat("/css/", GetAssetKey(bundleSuffix, ResourceLocation.Head), ".css");
@@ -764,60 +749,6 @@ namespace Nop.Web.Framework.UI
         }
 
         /// <summary>
-        /// Ger JQuery Datepicker date format from the .net current culture
-        /// </summary>
-        /// <returns>Format string that supported in JQuery Datepicker.</returns>
-        public string GetJQueryDateFormat()
-        {
-            /*
-                *  Date used in this comment : 5th - Nov - 2009 (Thursday)
-                *
-                *  .NET    JQueryUI        Output      Comment
-                *  --------------------------------------------------------------
-                *  d       d               5           day of month(No leading zero)
-                *  dd      dd              05          day of month(two digit)
-                *  ddd     D               Thu         day short name
-                *  dddd    DD              Thursday    day long name
-                *  M       m               11          month of year(No leading zero)
-                *  MM      mm              11          month of year(two digit)
-                *  MMM     M               Nov         month name short
-                *  MMMM    MM              November    month name long.
-                *  yy      y               09          Year(two digit)
-                *  yyyy    yy              2009        Year(four digit)             *
-                */
-
-            var currentFormat = CultureInfo.CurrentCulture.DateTimeFormat.ShortDatePattern;
-
-            // Convert the date
-            currentFormat = currentFormat.Replace("dddd", "DD");
-            currentFormat = currentFormat.Replace("ddd", "D");
-
-            // Convert month
-            if (currentFormat.Contains("MMMM"))
-            {
-                currentFormat = currentFormat.Replace("MMMM", "MM");
-            }
-            else if (currentFormat.Contains("MMM"))
-            {
-                currentFormat = currentFormat.Replace("MMM", "M");
-            }
-            else if (currentFormat.Contains("MM"))
-            {
-                currentFormat = currentFormat.Replace("MM", "mm");
-            }
-            else
-            {
-                currentFormat = currentFormat.Replace("M", "m");
-            }
-
-            // Convert year
-            currentFormat = currentFormat.Contains("yyyy") ?
-                currentFormat.Replace("yyyy", "yy") : currentFormat.Replace("yy", "y");
-
-            return currentFormat;
-        }
-
-        /// <summary>
         /// Get the route name associated with the request rendering this page
         /// </summary>
         /// <param name="handleDefaultRoutes">A value indicating whether to build the name using engine information unless otherwise specified</param>
@@ -861,188 +792,6 @@ namespace Nop.Web.Framework.UI
             }
 
             return routeName;
-        }
-
-        /// <summary>
-        /// Get a value of the text flow uses for the current UI culture
-        /// </summary>
-        /// <param name="ignoreRtl">A value indicating whether to we should ignore RTL language property for admin area. False by default</param>
-        /// <returns>"rtl" if text flows from right to left; otherwise, "ltr".</returns>
-        public string GetUIDirection(bool ignoreRtl = false)
-        {
-            if (ignoreRtl)
-                return "ltr";
-
-            return CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft ? "rtl" : "ltr";
-        }
-
-        /// <summary>
-        /// Prepare a common pager
-        /// </summary>
-        /// <param name="model">Pager model</param>
-        /// <returns>Pager</returns>
-        /// <remarks>We have two pagers: The first one can have custom routes. The second one just adds query string parameter</remarks>
-        public Pager Pager(IPageableModel model)
-        {
-            return new Pager(model, _actionContextAccessor.ActionContext?.HttpContext);
-        }
-
-        /// <summary>
-        /// Prepare a common pager
-        /// </summary>
-        /// <param name="model">Pager model</param>
-        /// <returns>
-        /// A task that represents the asynchronous operation
-        /// The task result contains the pager
-        /// </returns>
-        /// <remarks>We have two pagers: The first one can have custom routes. The second one just adds query string parameter</remarks>
-        public async Task<IHtmlContent> PagerAsync(PagerModel model)
-        {
-            if (model.TotalRecords == 0)
-                return new HtmlString(string.Empty);
-
-            var links = new StringBuilder();
-            if (model.ShowTotalSummary && (model.TotalPages > 0))
-            {
-                links.Append("<li class=\"total-summary\">");
-                links.AppendFormat(await model.GetCurrentPageTextAsync(), model.PageIndex + 1, model.TotalPages, model.TotalRecords);
-                links.Append("</li>");
-            }
-
-            if (model.ShowPagerItems && (model.TotalPages > 1))
-            {
-                var urlHelper = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext);
-
-                if (model.ShowFirst)
-                {
-                    //first page
-                    if ((model.PageIndex >= 3) && (model.TotalPages > model.IndividualPagesDisplayedCount))
-                    {
-                        model.RouteValues.pageNumber = 1;
-
-                        links.Append("<li class=\"first-page\">");
-
-                        links.AppendFormat("<a title=\"{0}\" href=\"{1}\">{2}</a>",
-                                await _localizationService.GetResourceAsync("Pager.FirstPageTitle"),
-                                model.UseRouteLinks ?
-                                    urlHelper.RouteUrl(model.RouteActionName, values: model.RouteValues) :
-                                    urlHelper.ActionLink(model.RouteActionName, values: model.RouteValues),
-                                await model.GetFirstButtonTextAsync());
-                        links.Append("</li>");
-                    }
-                }
-
-                if (model.ShowPrevious)
-                {
-                    //previous page
-                    if (model.PageIndex > 0)
-                    {
-                        model.RouteValues.pageNumber = model.PageIndex;
-
-                        links.Append("<li class=\"previous-page\">");
-
-                        links.AppendFormat("<a title=\"{0}\" href=\"{1}\">{2}</a>",
-                                await _localizationService.GetResourceAsync("Pager.PreviousPageTitle"),
-                                model.UseRouteLinks ?
-                                    urlHelper.RouteUrl(model.RouteActionName, values: model.RouteValues) :
-                                    urlHelper.ActionLink(model.RouteActionName, values: model.RouteValues),
-                                await model.GetPreviousButtonTextAsync());
-                        links.Append("</li>");
-                    }
-                }
-
-                if (model.ShowIndividualPages)
-                {
-                    //individual pages
-                    var firstIndividualPageIndex = model.GetFirstIndividualPageIndex();
-                    var lastIndividualPageIndex = model.GetLastIndividualPageIndex();
-                    for (var i = firstIndividualPageIndex; i <= lastIndividualPageIndex; i++)
-                    {
-                        if (model.PageIndex == i)
-                        {
-                            links.AppendFormat("<li class=\"current-page\"><span>{0}</span></li>", i + 1);
-                        }
-                        else
-                        {
-                            model.RouteValues.pageNumber = i + 1;
-
-                            links.Append("<li class=\"individual-page\">");
-
-                            links.AppendFormat("<a title=\"{0}\" href=\"{1}\">{2}</a>",
-                                string.Format(await _localizationService.GetResourceAsync("Pager.PageLinkTitle"), i + 1),
-                                model.UseRouteLinks ?
-                                    urlHelper.RouteUrl(model.RouteActionName, values: model.RouteValues) :
-                                    urlHelper.ActionLink(model.RouteActionName, values: model.RouteValues),
-                                i + 1);
-                            links.Append("</li>");
-                        }
-                    }
-                }
-
-                if (model.ShowNext)
-                {
-                    //next page
-                    if ((model.PageIndex + 1) < model.TotalPages)
-                    {
-                        model.RouteValues.pageNumber = (model.PageIndex + 2);
-
-                        links.Append("<li class=\"next-page\">");
-
-                        links.AppendFormat("<a title=\"{0}\" href=\"{1}\">{2}</a>",
-                            await _localizationService.GetResourceAsync("Pager.NextPageTitle"),
-                            model.UseRouteLinks ?
-                                urlHelper.RouteUrl(model.RouteActionName, values: model.RouteValues) :
-                                urlHelper.ActionLink(model.RouteActionName, values: model.RouteValues),
-                            await model.GetNextButtonTextAsync());
-                        links.Append("</li>");
-                    }
-                }
-
-                if (model.ShowLast)
-                {
-                    //last page
-                    if (((model.PageIndex + 3) < model.TotalPages) && (model.TotalPages > model.IndividualPagesDisplayedCount))
-                    {
-                        model.RouteValues.pageNumber = model.TotalPages;
-
-                        links.Append("<li class=\"last-page\">");
-
-                        links.AppendFormat("<a title=\"{0}\" href=\"{1}\">{2}</a>",
-                            await _localizationService.GetResourceAsync("Pager.LastPageTitle"),
-                            model.UseRouteLinks ?
-                                urlHelper.RouteUrl(model.RouteActionName, values: model.RouteValues) :
-                                urlHelper.ActionLink(model.RouteActionName, values: model.RouteValues),
-                            await model.GetLastButtonTextAsync());
-                        links.Append("</li>");
-                    }
-                }
-            }
-
-            var result = links.ToString();
-            if (!string.IsNullOrEmpty(result))
-                result = "<ul>" + result + "</ul>";
-
-            return new HtmlString(result);
-        }
-
-        /// <summary>
-        /// Return a value indicating whether the working language and theme support RTL (right-to-left)
-        /// </summary>
-        /// <param name="themeName">Theme name</param>
-        /// <returns>
-        /// A task that represents the asynchronous operation
-        /// The task result contains the value
-        /// </returns>
-        public async Task<bool> ShouldUseRtlThemeAsync(string themeName = null)
-        {
-            if (!CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft)
-                return false;
-
-            //ensure that the active theme also supports it
-            themeName ??= await _themeContext.GetWorkingThemeNameAsync();
-            var theme = await _themeProvider.GetThemeBySystemNameAsync(themeName);
-
-            return theme?.SupportRtl ?? false;
         }
 
         #endregion

@@ -27,9 +27,9 @@ using Nop.Services.Seo;
 using Nop.Services.Shipping.Date;
 using Nop.Services.Tax;
 using Nop.Services.Vendors;
-using Nop.Web.Framework.Models;
 using Nop.Web.Infrastructure.Cache;
 using Nop.Web.Models.Catalog;
+using Nop.Web.Models.Common;
 using Nop.Web.Models.Media;
 
 namespace Nop.Web.Factories

@@ -13,7 +13,7 @@ using Nop.Services.Helpers;
 using Nop.Services.Localization;
 using Nop.Services.Media;
 using Nop.Web.Framework.Extensions;
-using Nop.Web.Framework.Models;
+using Nop.Web.Models.Common;
 using Nop.Web.Models.Profile;
 
 namespace Nop.Web.Factories

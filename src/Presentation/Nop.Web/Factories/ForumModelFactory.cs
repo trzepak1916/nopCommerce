@@ -17,8 +17,8 @@ using Nop.Services.Html;
 using Nop.Services.Localization;
 using Nop.Services.Media;
 using Nop.Web.Framework.Extensions;
-using Nop.Web.Framework.Models;
 using Nop.Web.Models.Boards;
+using Nop.Web.Models.Common;
 
 namespace Nop.Web.Factories
 {

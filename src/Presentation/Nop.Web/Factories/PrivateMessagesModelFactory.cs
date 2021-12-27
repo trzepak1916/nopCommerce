@@ -8,7 +8,7 @@ using Nop.Services.Customers;
 using Nop.Services.Forums;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
-using Nop.Web.Framework.Models;
+using Nop.Web.Models.Common;
 using Nop.Web.Models.PrivateMessages;
 
 namespace Nop.Web.Factories
