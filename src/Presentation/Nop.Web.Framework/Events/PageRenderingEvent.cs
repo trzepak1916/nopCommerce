@@ -41,8 +41,9 @@ namespace Nop.Web.Framework.Events
         /// <summary>
         /// Get the route name associated with the request rendering this page
         /// </summary>
+        /// <param name="handleDefaultRoutes">A value indicating whether to build the name using engine information unless otherwise specified</param>
         /// <returns>Route name</returns>
-        public string GetRouteName()
+        public string GetRouteName(bool handleDefaultRoutes = false)
         {
             //if an overridden route name is specified, then use it
             //we use it to specify a custom route name when some custom page uses a custom route. But we still need this event to be invoked
@@ -50,7 +51,7 @@ namespace Nop.Web.Framework.Events
                 return OverriddenRouteName;
 
             //or try to get a registered endpoint route name
-            return Helper.GetRouteName();
+            return Helper.GetRouteName(handleDefaultRoutes);
         }
 
         #endregion
