@@ -176,6 +176,16 @@ namespace Nop.Services.Customers
         /// The task result contains the customer
         /// </returns>
         Task<Customer> GetCustomerByUsernameAsync(string username);
+        
+        /// <summary>
+        /// Returns a list of names of not existing customers
+        /// </summary>
+        /// <param name="customerIds">The IDs of the customer to check</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the list of IDs not existing customers
+        /// </returns>
+        Task<string[]> GetNotExistingCustomersAsync(string[] customerIds);
 
         /// <summary>
         /// Insert a guest customer

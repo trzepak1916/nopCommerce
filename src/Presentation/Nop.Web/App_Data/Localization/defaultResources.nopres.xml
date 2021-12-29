@@ -12879,6 +12879,18 @@
   <LocaleResource Name="Admin.Orders.Fields.VoidOffline">
     <Value>Void (Offline)</Value>
   </LocaleResource>
+  <LocaleResource Name="Admin.Orders.Import.CustomersDontExist">
+    <Value>Customers with the following IDs don't exist: {0}</Value>
+  </LocaleResource>
+  <LocaleResource Name="Admin.Orders.Import.ProductDoesntExist">
+    <Value>Product with the following SKU doesn't exist: {0}</Value>
+  </LocaleResource>
+  <LocaleResource Name="Admin.Orders.Import.StoresDontExist">
+    <Value>Stores with the following names and/or IDs don't exist: {0}</Value>
+  </LocaleResource>
+  <LocaleResource Name="Admin.Orders.Imported">
+    <Value>Orders have been imported successfully.</Value>
+  </LocaleResource>
   <LocaleResource Name="Admin.Orders.Info">
     <Value>Info</Value>
   </LocaleResource>
@@ -12917,6 +12929,9 @@
   </LocaleResource>
   <LocaleResource Name="Admin.Orders.List.GoDirectlyToNumber.Hint">
     <Value>Go directly to order #.</Value>
+  </LocaleResource>
+  <LocaleResource Name="Admin.Orders.List.ImportFromExcelTip">
+    <Value>Imported orders are distinguished by OrderGuid. If the OrderGuid already exists, then its corresponding order will be updated.</Value>
   </LocaleResource>
   <LocaleResource Name="Admin.Orders.List.OrderNotes">
     <Value>Order notes</Value>

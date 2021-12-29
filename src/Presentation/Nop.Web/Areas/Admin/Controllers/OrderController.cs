@@ -49,6 +49,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly IEventPublisher _eventPublisher;
         private readonly IExportManager _exportManager;
         private readonly IGiftCardService _giftCardService;
+        private readonly IImportManager _importManager;
         private readonly ILocalizationService _localizationService;
         private readonly INotificationService _notificationService;
         private readonly IOrderModelFactory _orderModelFactory;
@@ -83,6 +84,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             IEventPublisher eventPublisher,
             IExportManager exportManager,
             IGiftCardService giftCardService,
+            IImportManager importManager,
             ILocalizationService localizationService,
             INotificationService notificationService,
             IOrderModelFactory orderModelFactory,
@@ -113,6 +115,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             _eventPublisher = eventPublisher;
             _exportManager = exportManager;
             _giftCardService = giftCardService;
+            _importManager = importManager;
             _localizationService = localizationService;
             _notificationService = notificationService;
             _orderModelFactory = orderModelFactory;
@@ -458,6 +461,42 @@ namespace Nop.Web.Areas.Admin.Controllers
             }
         }
 
+        [HttpPost]
+        public virtual async Task<IActionResult> ImportExcel(IFormFile importexcelfile)
+        {
+            if (!await _permissionService.AuthorizeAsync(StandardPermissionProvider.ManageOrders))
+                return AccessDeniedView();
+
+            #warning //TODO: MT verify if below code makes sense
+            if (await _workContext.GetCurrentVendorAsync() != null)
+                //a vendor can not import orders
+                return AccessDeniedView();
+
+            try
+            {
+                if (importexcelfile != null && importexcelfile.Length > 0)
+                {
+                    await _importManager.ImportOrdersFromXlsxAsync(importexcelfile.OpenReadStream());
+                }
+                else
+                {
+                    _notificationService.ErrorNotification(await _localizationService.GetResourceAsync("Admin.Common.UploadFile"));
+                    
+                    return RedirectToAction("List");
+                }
+
+                _notificationService.SuccessNotification(await _localizationService.GetResourceAsync("Admin.Orders.Imported"));
+                
+                return RedirectToAction("List");
+            }
+            catch (Exception exc)
+            {
+                await _notificationService.ErrorNotificationAsync(exc);
+                
+                return RedirectToAction("List");
+            }
+        }
+        
         #endregion
 
         #region Order details
