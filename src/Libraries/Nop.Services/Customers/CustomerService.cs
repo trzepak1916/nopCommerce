@@ -616,6 +616,31 @@ namespace Nop.Services.Customers
 
             return customer;
         }
+        
+        /// <summary>
+        /// Returns a list of names of not existing customers
+        /// </summary>
+        /// <param name="customerIds">The IDs of the customer to check</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the list of IDs not existing customers
+        /// </returns>
+        public async Task<string[]> GetNotExistingCustomersAsync(string[] customerIds)
+        {
+            if (customerIds == null)
+                throw new ArgumentNullException(nameof(customerIds));
+
+            var query = _customerRepository.Table;
+            var queryFilter = customerIds.Distinct().ToArray();
+
+            //filtering by IDs
+            var filter = await query.Select(store => store.Id.ToString())
+                .Where(store => queryFilter.Contains(store))
+                .ToListAsync();
+            queryFilter = queryFilter.Except(filter).ToArray();
+
+            return queryFilter.ToArray();
+        }
 
         /// <summary>
         /// Insert a guest customer

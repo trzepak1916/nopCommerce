@@ -9,9 +9,12 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Nop.Core;
 using Nop.Core.Domain.Catalog;
+using Nop.Core.Domain.Common;
 using Nop.Core.Domain.Directory;
 using Nop.Core.Domain.Media;
 using Nop.Core.Domain.Messages;
+using Nop.Core.Domain.Orders;
+using Nop.Core.Domain.Payments;
 using Nop.Core.Domain.Shipping;
 using Nop.Core.Domain.Tax;
 using Nop.Core.Domain.Vendors;
@@ -19,12 +22,15 @@ using Nop.Core.Http;
 using Nop.Core.Infrastructure;
 using Nop.Data;
 using Nop.Services.Catalog;
+using Nop.Services.Common;
+using Nop.Services.Customers;
 using Nop.Services.Directory;
 using Nop.Services.ExportImport.Help;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
 using Nop.Services.Media;
 using Nop.Services.Messages;
+using Nop.Services.Orders;
 using Nop.Services.Seo;
 using Nop.Services.Shipping;
 using Nop.Services.Shipping.Date;
@@ -42,8 +48,10 @@ namespace Nop.Services.ExportImport
         #region Fields
 
         private readonly CatalogSettings _catalogSettings;
+        private readonly IAddressService _addressService;
         private readonly ICategoryService _categoryService;
         private readonly ICountryService _countryService;
+        private readonly ICustomerService _customerService;
         private readonly ICustomerActivityService _customerActivityService;
         private readonly INopDataProvider _dataProvider;
         private readonly IDateRangeService _dateRangeService;
@@ -54,6 +62,7 @@ namespace Nop.Services.ExportImport
         private readonly IMeasureService _measureService;
         private readonly INewsLetterSubscriptionService _newsLetterSubscriptionService;
         private readonly INopFileProvider _fileProvider;
+        private readonly IOrderService _orderService;
         private readonly IPictureService _pictureService;
         private readonly IProductAttributeService _productAttributeService;
         private readonly IProductService _productService;
@@ -78,8 +87,10 @@ namespace Nop.Services.ExportImport
         #region Ctor
 
         public ImportManager(CatalogSettings catalogSettings,
+            IAddressService addressService,
             ICategoryService categoryService,
             ICountryService countryService,
+            ICustomerService customerService,
             ICustomerActivityService customerActivityService,
             INopDataProvider dataProvider,
             IDateRangeService dateRangeService,
@@ -90,6 +101,7 @@ namespace Nop.Services.ExportImport
             IMeasureService measureService,
             INewsLetterSubscriptionService newsLetterSubscriptionService,
             INopFileProvider fileProvider,
+            IOrderService orderService,
             IPictureService pictureService,
             IProductAttributeService productAttributeService,
             IProductService productService,
@@ -110,8 +122,10 @@ namespace Nop.Services.ExportImport
             VendorSettings vendorSettings)
         {
             _catalogSettings = catalogSettings;
+            _addressService = addressService;
             _categoryService = categoryService;
             _countryService = countryService;
+            _customerService = customerService;
             _customerActivityService = customerActivityService;
             _dataProvider = dataProvider;
             _dateRangeService = dateRangeService;
@@ -122,6 +136,7 @@ namespace Nop.Services.ExportImport
             _manufacturerService = manufacturerService;
             _measureService = measureService;
             _newsLetterSubscriptionService = newsLetterSubscriptionService;
+            _orderService = orderService;
             _pictureService = pictureService;
             _productAttributeService = productAttributeService;
             _productService = productService;
@@ -1159,6 +1174,152 @@ namespace Nop.Services.ExportImport
             return filePaths;
         }
 
+        private async Task<ImportOrderMetadata> PrepareImportOrderDataAsync(IXLWorksheet worksheet)
+        {
+            //the columns
+            var properties = GetPropertiesByExcelCells<Order>(worksheet);
+            
+            var manager = new PropertyManager<Order>(properties, _catalogSettings);
+            
+            var orderItemProperties = new[]
+            {
+                new PropertyByName<OrderItem>("Name"),
+                new PropertyByName<OrderItem>("Sku"),
+                new PropertyByName<OrderItem>("PriceExclTax"),
+                new PropertyByName<OrderItem>("PriceInclTax"),
+                new PropertyByName<OrderItem>("Quantity"),
+                new PropertyByName<OrderItem>("DiscountExclTax"),
+                new PropertyByName<OrderItem>("DiscountInclTax"),
+                new PropertyByName<OrderItem>("TotalExclTax"),
+                new PropertyByName<OrderItem>("TotalInclTax")
+            };
+            
+            var orderItemsManager = new PropertyManager<OrderItem>(orderItemProperties, _catalogSettings);
+
+            if (_catalogSettings.ExportImportUseDropdownlistsForAssociatedEntities)
+            {
+#warning //TODO: MT do we need anything more here?
+                manager.SetSelectList("OrderStatus", await OrderStatus.Pending.ToSelectListAsync(useLocalization: false));
+                manager.SetSelectList("PaymentStatus", await PaymentStatus.Pending.ToSelectListAsync(useLocalization: false));
+                manager.SetSelectList("ShippingStatus", await ShippingStatus.ShippingNotRequired.ToSelectListAsync(useLocalization: false));
+            }
+            
+            var endRow = 2;
+
+            var allStoreIds = new List<string>();
+            var allOrderGuids = new List<string>();
+            var allCustomerIds = new List<string>();
+            #warning //TODO: MT
+            var allAffiliateIds = new List<string>();
+
+            var tempProperty = manager.GetProperty("StoreId");
+            var storeIdCellNum = tempProperty?.PropertyOrderPosition ?? -1;
+
+            tempProperty = manager.GetProperty("OrderGuid");
+            var orderGuidCellNum = tempProperty?.PropertyOrderPosition ?? -1;
+
+            tempProperty = manager.GetProperty("CustomerId");
+            var customerIdCellNum = tempProperty?.PropertyOrderPosition ?? -1;
+
+            var ordersInFile = new List<int>();
+
+            //find end of data
+            while (true)
+            {
+                var allColumnsAreEmpty = manager.GetProperties
+                    .Select(property => worksheet.Row(endRow).Cell(property.PropertyOrderPosition))
+                    .All(cell => string.IsNullOrEmpty(cell?.Value?.ToString()));
+                
+                if (allColumnsAreEmpty)
+                    break;
+
+                #warning //TODO: MT 2 to const
+                const int orderItemSkuCellNum = 2 + 2;
+                
+                if (new[] { 1, 2 }.Select(cellNum => worksheet.Row(endRow).Cell(cellNum))
+                        .All(cell => string.IsNullOrEmpty(cell?.Value?.ToString())) &&
+                    worksheet.Row(endRow).OutlineLevel == 0)
+                {
+                    var cellValue = worksheet.Row(endRow).Cell(orderItemSkuCellNum).Value;
+                    await SetOutLineForOrderItemRowAsync(cellValue, worksheet, endRow);
+                }
+
+                if (worksheet.Row(endRow).OutlineLevel != 0)
+                {
+                    orderItemsManager.ReadFromXlsx(worksheet, endRow, 2);
+                    endRow++;
+                    continue;
+                }
+                
+                if (storeIdCellNum > 0)
+                {
+                    var storeId = worksheet.Row(endRow).Cell(storeIdCellNum).Value?.ToString() ?? string.Empty;
+
+                    if (!string.IsNullOrEmpty(storeId))
+                        allStoreIds.Add(storeId);
+                }
+
+                if (orderGuidCellNum > 0)
+                {
+                    var orderGuid = worksheet.Row(endRow).Cell(orderGuidCellNum).Value?.ToString() ?? string.Empty;
+
+                    if (!string.IsNullOrEmpty(orderGuid))
+                        allOrderGuids.Add(orderGuid);
+                }
+
+                if (customerIdCellNum > 0)
+                {
+                    var customerId = worksheet.Row(endRow).Cell(customerIdCellNum).Value?.ToString() ?? string.Empty;
+
+                    if (!string.IsNullOrEmpty(customerId))
+                        allCustomerIds.Add(customerId);
+                }
+            
+                //counting the number of orders
+                ordersInFile.Add(endRow);
+
+                endRow++;
+            }
+
+            //performance optimization, the check for the existence of the stores in one SQL request
+            var notExistingStores = await _storeService.GetNotExistingStoresAsync(allStoreIds.ToArray());
+            if (notExistingStores.Any())
+                throw new ArgumentException(string.Format(await _localizationService.GetResourceAsync("Admin.Orders.Import.StoresDontExist"), string.Join(", ", notExistingStores)));
+            
+            //performance optimization, the check for the existence of the customers in one SQL request
+            var notExistingCustomers = await _customerService.GetNotExistingCustomersAsync(allCustomerIds.ToArray());
+            if (notExistingCustomers.Any())
+                throw new ArgumentException(string.Format(await _localizationService.GetResourceAsync("Admin.Orders.Import.CustomersDontExist"), string.Join(", ", notExistingCustomers)));
+            
+            #warning //TODO: MT validate if sum of orderItems' prices matches order price
+
+            return new ImportOrderMetadata
+            {
+                EndRow = endRow,
+                Manager = manager,
+                OrderItemManager = orderItemsManager,
+                Properties = properties,
+                OrderGuidCellNum = orderGuidCellNum,
+                AllOrderGuids = allOrderGuids,
+                OrdersInFile = ordersInFile
+            };
+        }
+        
+        /// <returns>A task that represents the asynchronous operation</returns>
+        protected virtual async Task SetOutLineForOrderItemRowAsync(object cellValue, IXLWorksheet worksheet, int endRow)
+        {
+            var sku = cellValue?.ToString();
+
+            Product orderItemProduct = null;
+
+#warning //TODO: MT think if it makes sense to do such heavy validation here or maybe get all prodcuts by SKU later?
+            if (!string.IsNullOrEmpty(sku))
+                orderItemProduct = await _productService.GetProductBySkuAsync(sku);
+
+            if (orderItemProduct != null)
+                worksheet.Row(endRow).OutlineLevel = 1;
+        }
+        
         #endregion
 
         #region Methods
@@ -2180,6 +2341,352 @@ namespace Nop.Services.ExportImport
             throw new ArgumentException(string.Format(await _localizationService.GetResourceAsync("Admin.Catalog.Categories.Import.CategoriesArentImported"), string.Join(", ", categoriesName)));
         }
 
+        /// <summary>
+        /// Import orders from XLSX file
+        /// </summary>
+        /// <param name="stream">Stream</param>
+        /// <returns>A task that represents the asynchronous operation</returns>
+        public virtual async Task ImportOrdersFromXlsxAsync(Stream stream)
+        {
+            using var workbook = new XLWorkbook(stream);
+            // get the first worksheet in the workbook
+            var worksheet = workbook.Worksheets.FirstOrDefault();
+            if (worksheet == null)
+                throw new NopException("No worksheet found");
+
+            var downloadedFiles = new List<string>();
+            
+            var metadata = await PrepareImportOrderDataAsync(worksheet);
+
+            #warning //TODO MT
+            // if (_orderSettings.ExportImportSplitOrdersFile && metadata.CountOrdersInFile > _catalogSettings.ExportImportOrdersCountInOneFile)
+            // {
+            //     await ImportOrdersFromSplitedXlsxAsync(worksheet, metadata);
+            //     return;
+            // }
+
+            var allOrdersByGuid = new List<Order>();
+            
+            #warning //TODO: MT GetOrdersByGuids
+            foreach (var orderGuidString in metadata.AllOrderGuids)
+                if (Guid.TryParse(orderGuidString, out var orderGuid))
+                    allOrdersByGuid.Add(await _orderService.GetOrderByGuidAsync(orderGuid));
+
+            var countries = await _countryService.GetAllCountriesAsync();
+            var stateProvinces = await _stateProvinceService.GetStateProvincesAsync();
+
+            Order lastLoadedOrder = null;
+            IList<OrderItem> lastLoadedOrderExistingItems = null;
+            IList<OrderItem> importedOrderItems = new List<OrderItem>();
+            
+            for (var iRow = 2; iRow < metadata.EndRow; iRow++)
+            {
+                //imports order items
+                if (worksheet.Row(iRow).OutlineLevel != 0)
+                {
+                    if (lastLoadedOrder == null)
+                        continue;
+
+                    if (lastLoadedOrder.Id != 0 && lastLoadedOrderExistingItems == null)
+                        lastLoadedOrderExistingItems = await _orderService.GetOrderItemsAsync(lastLoadedOrder.Id);
+                    
+                    var orderItemManager = metadata.OrderItemManager;
+                    #warning //TODO: MT celloffset
+                    orderItemManager.ReadFromXlsx(worksheet, iRow, 2);
+
+                    if (orderItemManager.IsCaption)
+                        continue;
+
+                    importedOrderItems.Add(await ImportOrderItemAsync(orderItemManager, lastLoadedOrder, lastLoadedOrderExistingItems));
+
+                    continue;
+                }
+
+                metadata.Manager.ReadFromXlsx(worksheet, iRow);
+
+                var order = metadata.OrderGuidCellNum > 0 ? allOrdersByGuid.FirstOrDefault(o => o.OrderGuid.ToString() == metadata.Manager.GetProperty("OrderGuid").StringValue) : null;
+
+                var isNew = order == null;
+
+                var billingAddress = new Address { CreatedOnUtc = DateTime.UtcNow };
+                var shippingAddress =  new Address { CreatedOnUtc = DateTime.UtcNow };
+
+                order ??= new Order();
+                
+                #warning//TODO: MT previous values
+
+                if (isNew)
+                    order.CreatedOnUtc = DateTime.UtcNow;
+
+                foreach (var property in metadata.Manager.GetProperties)
+                {
+                    switch (property.PropertyName)
+                    {
+                        #warning //TODO: MT - don't import ID?
+//                         case "OrderId":
+// order.Id = property.IntValue;
+// break;
+                        case "StoreId":
+                            order.StoreId = property.IntValue;
+                            break;
+                        case "OrderGuid":
+                            order.OrderGuid = Guid.TryParse(property.StringValue, out var orderGuid) ? orderGuid : Guid.NewGuid();
+                            break;
+                        case "CustomerId":
+                            order.CustomerId = property.IntValue;
+                            break;
+                        case "OrderStatus":
+                            order.OrderStatusId = property.IntValue;
+                            break;
+                        case "PaymentStatus":
+                            order.PaymentStatusId = property.IntValue;
+                            break;
+                        case "ShippingStatus":
+                            order.ShippingStatusId = property.IntValue;
+                            break;
+                        case "OrderSubtotalInclTax":
+                            order.OrderSubtotalInclTax = property.DecimalValue;
+                            break;
+                        case "OrderSubtotalExclTax":
+                            order.OrderSubtotalExclTax = property.DecimalValue;
+                            break;
+                        case "OrderSubTotalDiscountInclTax":
+                            order.OrderSubTotalDiscountInclTax = property.DecimalValue;
+                            break;
+                        case "OrderSubTotalDiscountExclTax":
+                            order.OrderSubTotalDiscountExclTax = property.DecimalValue;
+                            break;
+                        case "OrderShippingInclTax":
+                            order.OrderShippingInclTax = property.DecimalValue;
+                            break;
+                        case "OrderShippingExclTax":
+                            order.OrderShippingExclTax = property.DecimalValue;
+                            break;
+                        case "PaymentMethodAdditionalFeeInclTax":
+                            order.PaymentMethodAdditionalFeeInclTax = property.DecimalValue;
+                            break;
+                        case "PaymentMethodAdditionalFeeExclTax":
+                            order.PaymentMethodAdditionalFeeExclTax = property.DecimalValue;
+                            break;
+                        case "TaxRates":
+                            order.TaxRates = property.StringValue;
+                            break;
+                        case "OrderTax":
+                            order.OrderTax = property.DecimalValue;
+                            break;
+                        case "OrderTotal":
+                            order.OrderTotal = property.DecimalValue;
+                            break;
+                        case "RefundedAmount":
+                            order.RefundedAmount = property.DecimalValue;
+                            break;
+                        case "OrderDiscount":
+                            order.OrderDiscount = property.DecimalValue;
+                            break;
+                        case "CurrencyRate":
+                            order.CurrencyRate = property.DecimalValue;
+                            break;
+                        case "CustomerCurrencyCode":
+                            order.CustomerCurrencyCode = property.StringValue;
+                            break;
+                        case "AffiliateId":
+                            order.AffiliateId = property.IntValue;
+                            break;
+                        case "PaymentMethodSystemName":
+                            order.PaymentMethodSystemName = property.StringValue;
+                            break;
+                        case "ShippingPickupInStore":
+                            order.PickupInStore = property.BooleanValue;
+                            break;
+                        case "ShippingMethod":
+                            order.ShippingMethod = property.StringValue;
+                            break;
+                        case "ShippingRateComputationMethodSystemName":
+                            order.ShippingRateComputationMethodSystemName = property.StringValue;
+                            break;
+#warning //TODO: MT validate XML anyhow?
+                        case "CustomValuesXml":
+                            order.CustomValuesXml = property.StringValue;
+                            break;
+                        case "VatNumber":
+                            order.VatNumber = property.StringValue;
+                            break;
+                        case "BillingFirstName":
+                            billingAddress.FirstName = property.StringValue;
+                            break;
+                        case "BillingLastName":
+                            billingAddress.LastName = property.StringValue;
+                            break;
+                        case "BillingEmail":
+                            billingAddress.Email = property.StringValue;
+                            break;
+                        case "BillingCompany":
+                            billingAddress.Company = property.StringValue;
+                            break;
+                        case "BillingCountry":
+                            billingAddress.CountryId = GetCountryIdByName(countries, property);
+                            break;
+                        case "BillingStateProvince":
+                            billingAddress.StateProvinceId = GetStateProvinceIdByName(stateProvinces, property);
+                            break;
+                        case "BillingCounty":
+                            billingAddress.County = property.StringValue;
+                            break;
+                        case "BillingCity":
+                            billingAddress.City = property.StringValue;
+                            break;
+                        case "BillingAddress1":
+                            billingAddress.Address1 = property.StringValue;
+                            break;
+                        case "BillingAddress2":
+                            billingAddress.Address2 = property.StringValue;
+                            break;
+                        case "BillingZipPostalCode":
+                            billingAddress.ZipPostalCode = property.StringValue;
+                            break;
+                        case "BillingPhoneNumber":
+                            billingAddress.PhoneNumber = property.StringValue;
+                            break;
+                        case "BillingFaxNumber":
+                            billingAddress.FaxNumber = property.StringValue;
+                            break;
+                        case "ShippingFirstName":
+                            shippingAddress.FirstName = property.StringValue;
+                            break;
+                        case "ShippingLastName":
+                            shippingAddress.LastName = property.StringValue;
+                            break;
+                        case "ShippingEmail":
+                            shippingAddress.Email = property.StringValue;
+                            break;
+                        case "ShippingCompany":
+                            shippingAddress.Company = property.StringValue;
+                            break;
+                        case "ShippingCountry":
+                            shippingAddress.CountryId = GetCountryIdByName(countries, property);
+                            break;
+                        case "ShippingStateProvince":
+                            shippingAddress.StateProvinceId = GetStateProvinceIdByName(stateProvinces, property);
+                            break;
+                        case "ShippingCounty":
+                            shippingAddress.County = property.StringValue;
+                            break;
+                        case "ShippingCity":
+                            shippingAddress.City = property.StringValue;
+                            break;
+                        case "ShippingAddress1":
+                            shippingAddress.Address1 = property.StringValue;
+                            break;
+                        case "ShippingAddress2":
+                            shippingAddress.Address2 = property.StringValue;
+                            break;
+                        case "ShippingZipPostalCode":
+                            shippingAddress.ZipPostalCode = property.StringValue;
+                            break;
+                        case "ShippingPhoneNumber":
+                            shippingAddress.PhoneNumber = property.StringValue;
+                            break;
+                        case "ShippingFaxNumber":
+                            shippingAddress.FaxNumber = property.StringValue;
+                            break;
+                    }
+                }
+                
+                #warning //TODO: MT match or validate somehow address with address of associated customer or create a new one?
+                    
+                #warning //TODO: MT set some default values if not specified
+                // if(isNew&& metadata.Properties.All(p => p.PropertyName != "ProductType"))
+
+                if (isNew)
+                    await _orderService.InsertOrderAsync(order);
+                else
+                    await _orderService.UpdateOrderAsync(order);
+                    
+                #warning //TODO: MT change stock for each order item if new order?
+
+                //Remove order items that exist in DB, but don't exist in imported data
+                if (lastLoadedOrderExistingItems != null)
+                {
+                    #warning //TODO: MT is this comparison right - can we have two order items with of the same product, but with different prices?
+                    foreach (var orderItemToRemove in lastLoadedOrderExistingItems.Where(eoi => importedOrderItems.All(ioi => ioi.ProductId != eoi.ProductId)))
+                        await _orderService.DeleteOrderItemAsync(orderItemToRemove);
+                }
+                
+                lastLoadedOrder = order;
+                lastLoadedOrderExistingItems = null;
+                importedOrderItems = new List<OrderItem>();
+            }
+            
+            #warning //TODO: MT activity log
+            // await _customerActivityService.InsertActivityAsync("ImportProducts", string.Format(await _localizationService.GetResourceAsync("ActivityLog.ImportProducts"), metadata.CountProductsInFile));
+        }
+
+        private static int? GetStateProvinceIdByName(IList<StateProvince> stateProvinces, PropertyByName<Order> property)
+        {
+            return stateProvinces.FirstOrDefault(c => c.Name.Equals(property.StringValue, StringComparison.OrdinalIgnoreCase))?.Id;
+        }
+
+        private static int? GetCountryIdByName(IList<Country> countries, PropertyByName<Order> property)
+        {
+            return countries.FirstOrDefault(c => c.Name.Equals(property.StringValue, StringComparison.OrdinalIgnoreCase))?.Id;
+        }
+
+        protected virtual async Task<OrderItem> ImportOrderItemAsync(PropertyManager<OrderItem> orderItemManager, Order lastLoadedOrder, IList<OrderItem> lastLoadedOrderExtistingItems)
+        {
+            var importedSku = orderItemManager.GetProperty("Sku").StringValue;
+            
+#warning //TODO: MT is this logic right or maybe we can have two order items with of the same product, but with different prices - in such case we should always remove all existing order items and create new ones...
+            var product = await _productService.GetProductBySkuAsync(importedSku);
+            if (product == null)
+                throw new ArgumentException(string.Format(await _localizationService.GetResourceAsync("Admin.Orders.Import.ProductDoesntExist"), importedSku));
+            var productId = product.Id;
+
+            var unitPriceExclTax = orderItemManager.GetProperty("PriceExclTax").DecimalValue;
+            var unitPriceInclTax = orderItemManager.GetProperty("PriceInclTax").DecimalValue;
+            var quantity = orderItemManager.GetProperty("Quantity").IntValue;
+            var discountAmountExclTax = orderItemManager.GetProperty("DiscountExclTax").DecimalValue;
+            var discountAmountInclTax = orderItemManager.GetProperty("DiscountInclTax").DecimalValue;
+            var priceExclTax = orderItemManager.GetProperty("TotalExclTax").DecimalValue;
+            var priceInclTax = orderItemManager.GetProperty("TotalInclTax").DecimalValue;
+
+            var orderItem = lastLoadedOrderExtistingItems?.FirstOrDefault(oi => oi.ProductId == productId);
+
+            if (orderItem == null)
+            {
+                orderItem = new OrderItem
+                {
+                    OrderItemGuid = Guid.NewGuid(),
+                    OrderId = lastLoadedOrder.Id,
+                    ProductId = productId,
+                    UnitPriceExclTax = unitPriceExclTax,
+                    UnitPriceInclTax = unitPriceInclTax,
+                    Quantity = quantity,
+                    DiscountAmountExclTax = discountAmountExclTax,
+                    DiscountAmountInclTax = discountAmountInclTax,
+                    PriceExclTax = priceExclTax,
+                    PriceInclTax = priceInclTax
+                };
+                
+                #warning //TODO: MT set any additional defaults?
+                
+                await _orderService.InsertOrderItemAsync(orderItem);
+            }
+            else
+            {
+                orderItem.UnitPriceExclTax = unitPriceExclTax;
+                orderItem.UnitPriceInclTax = unitPriceInclTax;
+                orderItem.Quantity = quantity;
+                orderItem.DiscountAmountExclTax = discountAmountExclTax;
+                orderItem.DiscountAmountInclTax = discountAmountInclTax;
+                orderItem.PriceExclTax = priceExclTax;
+                orderItem.PriceInclTax = priceInclTax;
+
+                await _orderService.UpdateOrderItemAsync(orderItem);
+            }
+
+            return orderItem;
+        }
+        
         #endregion
 
         #region Nested classes
